@@ -33,22 +33,31 @@ const DEFAULT_SHOP_ITEMS: ShopItem[] = [
 ];
 
 // --- Rank System Logic (Honor of Kings Style) ---
-// 1 Star = 100 EXP (Simplification for calculation)
+// UPDATED: 1 Star = 5000 EXP.
+const EXP_PER_STAR = 5000;
+
 const RANK_CONFIG = [
-    { name: Rank.BRONZE,  starsPerSub: 3, subTiers: 3, baseExp: 0, color: 'from-emerald-700 to-emerald-900', iconColor: 'text-emerald-400' },      // 0 - 900 EXP
-    { name: Rank.SILVER,  starsPerSub: 3, subTiers: 3, baseExp: 900, color: 'from-slate-500 to-slate-700', iconColor: 'text-blue-200' },    // 900 - 1800 EXP
-    { name: Rank.GOLD,    starsPerSub: 4, subTiers: 4, baseExp: 1800, color: 'from-yellow-600 to-yellow-800', iconColor: 'text-yellow-400' },   // 1800 - 3400 EXP
-    { name: Rank.PLATINUM, starsPerSub: 4, subTiers: 4, baseExp: 3400, color: 'from-cyan-600 to-cyan-800', iconColor: 'text-cyan-300' },  // 3400 - 5000 EXP
-    { name: Rank.DIAMOND, starsPerSub: 5, subTiers: 5, baseExp: 5000, color: 'from-purple-600 to-purple-900', iconColor: 'text-purple-300' },   // 5000 - 7500 EXP
-    { name: Rank.STAR,    starsPerSub: 5, subTiers: 5, baseExp: 7500, color: 'from-orange-600 to-red-800', iconColor: 'text-orange-400' },   // 7500 - 10000 EXP
-    { name: Rank.KING,    starsPerSub: 9999, subTiers: 1, baseExp: 10000, color: 'from-yellow-500 via-red-500 to-purple-600', iconColor: 'text-yellow-200' } // 10000+
+    // Bronze: 3 sub-tiers * 3 stars = 9 stars. Max Exp before Silver = 9 * 5000 = 45000
+    { name: Rank.BRONZE,  starsPerSub: 3, subTiers: 3, baseExp: 0, color: 'from-emerald-700 to-emerald-900', iconColor: 'text-emerald-400' },
+    // Silver: 3 sub-tiers * 3 stars = 9 stars. Starts at 45000. Max before Gold = 45000 + 45000 = 90000
+    { name: Rank.SILVER,  starsPerSub: 3, subTiers: 3, baseExp: 45000, color: 'from-slate-500 to-slate-700', iconColor: 'text-blue-200' },
+    // Gold: 4 sub-tiers * 4 stars = 16 stars. Starts at 90000. Max before Plat = 90000 + (16*5000) = 170000
+    { name: Rank.GOLD,    starsPerSub: 4, subTiers: 4, baseExp: 90000, color: 'from-yellow-600 to-yellow-800', iconColor: 'text-yellow-400' },
+    // Platinum: 4 sub-tiers * 4 stars = 16 stars. Starts at 170000. Max before Diamond = 170000 + 80000 = 250000
+    { name: Rank.PLATINUM, starsPerSub: 4, subTiers: 4, baseExp: 170000, color: 'from-cyan-600 to-cyan-800', iconColor: 'text-cyan-300' },
+    // Diamond: 5 sub-tiers * 5 stars = 25 stars. Starts at 250000. Max before Star = 250000 + 125000 = 375000
+    { name: Rank.DIAMOND, starsPerSub: 5, subTiers: 5, baseExp: 250000, color: 'from-purple-600 to-purple-900', iconColor: 'text-purple-300' },
+    // Star: 5 sub-tiers * 5 stars = 25 stars. Starts at 375000. Max before King = 375000 + 125000 = 500000
+    { name: Rank.STAR,    starsPerSub: 5, subTiers: 5, baseExp: 375000, color: 'from-orange-600 to-red-800', iconColor: 'text-orange-400' },
+    // King: Starts at 500000.
+    { name: Rank.KING,    starsPerSub: 9999, subTiers: 1, baseExp: 500000, color: 'from-yellow-500 via-red-500 to-purple-600', iconColor: 'text-yellow-200' }
 ];
 
 const getRankInfo = (exp: number) => {
-    // 1 Star = 100 EXP
-    const totalStars = Math.floor(exp / 100);
-    const expForNextStar = 100 - (exp % 100);
-    const currentStarExp = exp % 100;
+    // 1 Star = 5000 EXP
+    const totalStars = Math.floor(exp / EXP_PER_STAR);
+    const expForNextStar = EXP_PER_STAR - (exp % EXP_PER_STAR);
+    const currentStarExp = exp % EXP_PER_STAR;
     
     let currentConfig = RANK_CONFIG[0];
     let starsRemaining = totalStars;
@@ -95,8 +104,8 @@ const getRankInfo = (exp: number) => {
         displayTitle: currentConfig.name,
         subRank: currentSubTier,
         progress: progress,
-        nextExp: (totalStars + 1) * 100, // EXP needed for next star
-        needed: ((totalStars + 1) * 100) - exp,
+        nextExp: (totalStars + 1) * EXP_PER_STAR, // EXP needed for next star
+        needed: ((totalStars + 1) * EXP_PER_STAR) - exp,
         currentStars: starsInCurrentSub,
         maxStars: currentConfig.starsPerSub,
         config: currentConfig,
@@ -197,9 +206,9 @@ const RankDisplay: React.FC<{ stats: UserStats, onClick?: () => void }> = ({ sta
               {/* Exp Progress Text - To clarify it doesn't take 10000 exp for one star */}
               <div className="mt-2 text-[10px] text-slate-400 font-mono flex items-center gap-1">
                   <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-yellow-500" style={{ width: `${currentStarExp}%` }}></div>
+                      <div className="h-full bg-yellow-500" style={{ width: `${(currentStarExp / EXP_PER_STAR) * 100}%` }}></div>
                   </div>
-                  <span>{currentStarExp}/100 EXP</span>
+                  <span>{currentStarExp}/{EXP_PER_STAR} EXP</span>
               </div>
           </div>
 
@@ -1171,7 +1180,7 @@ const App: React.FC = () => {
                 <h4 className="text-white font-bold mb-3 flex items-center gap-2"><Trophy size={16} className="text-yellow-500"/> 排位规则</h4>
                 <p className="text-xs text-slate-400 leading-relaxed space-y-2">
                    • 每次对战胜利获得经验值 (EXP)。<br/>
-                   • 100 EXP = 1 颗星。<br/>
+                   • {EXP_PER_STAR} EXP = 1 颗星。<br/>
                    • 积累星星提升段位，从倔强青铜到最强王者。<br/>
                    • 连胜可获得额外 EXP 加成。
                 </p>
