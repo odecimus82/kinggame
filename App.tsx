@@ -971,10 +971,16 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-start gap-3 relative z-10">
               <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm"><Quote size={18} className="text-yellow-400"/></div>
-              <div>
+              <div className="flex-1">
                   <p className="text-xs text-indigo-200 italic mb-1.5 leading-relaxed font-serif">"{currentQuote.en}"</p>
                   <p className="text-sm font-bold text-white">{currentQuote.ch}</p>
               </div>
+              <button 
+                  onClick={() => { const u = new SpeechSynthesisUtterance(currentQuote.en); u.lang = 'en-US'; window.speechSynthesis.speak(u); }}
+                  className="p-2 bg-indigo-400/20 rounded-full text-indigo-200 hover:text-white hover:bg-indigo-400/40 transition-colors"
+              >
+                  <Volume2 size={16} />
+              </button>
           </div>
       </div>
 
