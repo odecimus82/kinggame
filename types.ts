@@ -1,3 +1,4 @@
+
 export interface Word {
   id: string;
   english: string;
@@ -58,6 +59,9 @@ export interface UserStats {
   redemptionHistory: RedemptionRecord[]; 
   lastSignInDate?: string; // Added: YYYY-MM-DD for daily check-in
   shopItems?: ShopItem[]; // Added: Custom shop items specific to this user
+  dailyRepairCount?: number; // Added: Tracks number of mistakes fixed today
+  totalRepairs?: number; // Added: Lifetime repairs for milestone rewards
+  dailyQuestsClaimed: {[date: string]: string[]}; // Added: Track claimed quests
 }
 
 export interface WrongAnswer {
