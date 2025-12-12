@@ -151,6 +151,15 @@ const getLevelInfo = (totalGold: number) => {
 };
 
 // --- Helper Functions ---
+const getLocalTodayDate = () => {
+    // Returns date string in YYYY-MM-DD format based on local time
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const generateSimilarQuestion = (original: ExamQuestion): ExamQuestion => {
     let newQ = { ...original, id: original.id + '-variant-' + Date.now() };
     if (newQ.question.includes('He ')) newQ.question = newQ.question.replace('He ', 'She ');
@@ -202,6 +211,43 @@ const speak = (text: string) => {
     }
     
     window.speechSynthesis.speak(u);
+};
+
+// --- Visual Effect Component ---
+const RewardFlyer: React.FC<{ items: { id: number, type: 'GOLD' | 'EXP', amount: number }[] }> = ({ items }) => {
+    if (items.length === 0) return null;
+
+    return (
+        <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
+            {items.map((item) => (
+                <div 
+                    key={item.id}
+                    className="absolute left-1/2 top-1/2 flex items-center justify-center animate-fly-reward"
+                >
+                    <div className={`text-4xl drop-shadow-lg ${item.type === 'GOLD' ? 'text-yellow-400' : 'text-purple-400'}`}>
+                        {item.type === 'GOLD' ? <CircleDollarSign size={40} fill="currentColor"/> : <Zap size={40} fill="currentColor"/>}
+                    </div>
+                    <span className={`ml-2 text-3xl font-black ${item.type === 'GOLD' ? 'text-yellow-100' : 'text-purple-100'} text-shadow-md`}>
+                        +{item.amount}
+                    </span>
+                </div>
+            ))}
+            <style>{`
+                @keyframes flyReward {
+                    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+                    10% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+                    80% { transform: translate(150px, -400px) scale(0.8); opacity: 0.8; }
+                    100% { transform: translate(200px, -600px) scale(0); opacity: 0; }
+                }
+                .animate-fly-reward {
+                    animation: flyReward 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+                }
+                .text-shadow-md {
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+                }
+            `}</style>
+        </div>
+    );
 };
 
 // --- Helper Components ---
@@ -467,6 +513,9 @@ const App: React.FC = () => {
   // Reward Floating Effect
   const [floatingReward, setFloatingReward] = useState<{id: number, text: string} | null>(null);
   
+  // Visual Effects State
+  const [visualRewards, setVisualRewards] = useState<{id: number, type: 'GOLD' | 'EXP', amount: number}[]>([]);
+
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
       isOpen: false, title: '', message: '', onConfirm: () => {}
   });
@@ -502,6 +551,14 @@ const App: React.FC = () => {
       const index = hour % DAILY_QUOTES.length;
       setCurrentQuote(DAILY_QUOTES[index]);
   }, []);
+
+  const triggerRewardEffect = (type: 'GOLD' | 'EXP', amount: number) => {
+      const id = Date.now();
+      setVisualRewards(prev => [...prev, { id, type, amount }]);
+      setTimeout(() => {
+          setVisualRewards(prev => prev.filter(r => r.id !== id));
+      }, 1200); 
+  };
 
   const handleLogin = () => {
       const username = loginInput.trim();
@@ -540,7 +597,7 @@ const App: React.FC = () => {
   };
 
   const handleCheckIn = () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalTodayDate();
       if (userStats.lastSignInDate !== today) {
           const goldReward = 50;
           setUserStats(prev => ({
@@ -552,6 +609,8 @@ const App: React.FC = () => {
               loginStreak: prev.loginStreak + 1,
               dailyRepairCount: 0 // Reset daily repair count on new day check-in
           }));
+          triggerRewardEffect('GOLD', 50);
+          triggerRewardEffect('EXP', 20);
           setConfirmModal({
               isOpen: true,
               title: '签到成功',
@@ -562,7 +621,7 @@ const App: React.FC = () => {
   };
 
   const isCheckedInToday = () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalTodayDate();
       return userStats.lastSignInDate === today;
   };
 
@@ -733,6 +792,7 @@ const App: React.FC = () => {
       setQuizScore(prev => prev + 10);
       // Trigger reward effect
       setFloatingReward({ id: Date.now(), text: '+1 经验' });
+      triggerRewardEffect('EXP', 1);
       setTimeout(() => setFloatingReward(null), 1000);
     } else {
       setAnswerStatus('WRONG');
@@ -805,6 +865,8 @@ const App: React.FC = () => {
         expGained = Math.floor(correctCount); // 1 exp per correct
         goldGained = Math.floor(correctCount / 10); // 1 gold per 10 correct
         message = `正确率 ${Math.round(accuracy * 100)}% (>=50%)。奖励已发放！`;
+        triggerRewardEffect('EXP', expGained);
+        if (goldGained > 0) triggerRewardEffect('GOLD', goldGained);
     } else {
         message = `正确率 ${Math.round(accuracy * 100)}% (<50%)。本次无奖励。`;
     }
@@ -845,7 +907,7 @@ const App: React.FC = () => {
   };
 
   const claimDailyReward = (questId: string, type: 'GOLD' | 'EXP', amount: number) => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalTodayDate();
       const claimed = (userStats.dailyQuestsClaimed && userStats.dailyQuestsClaimed[today]) || [];
       if (claimed.includes(questId)) return;
 
@@ -862,6 +924,7 @@ const App: React.FC = () => {
               dailyQuestsClaimed: newClaims
           };
       });
+      triggerRewardEffect(type, amount);
       alert(`领取成功！获得 ${amount} ${type === 'GOLD' ? '金币' : '经验'}`);
   };
   
@@ -897,6 +960,8 @@ const App: React.FC = () => {
           })); 
           
           setFloatingReward({ id: Date.now(), text: rewardText });
+          triggerRewardEffect('EXP', bonusExp);
+          if (bonusGold > 0) triggerRewardEffect('GOLD', bonusGold);
           setTimeout(() => setFloatingReward(null), 2000);
 
           setRepairModalOpen(false);
@@ -968,6 +1033,8 @@ const App: React.FC = () => {
               })); 
 
               setFloatingReward({ id: Date.now(), text: rewardText });
+              triggerRewardEffect('EXP', bonusExp);
+              if (bonusGold > 0) triggerRewardEffect('GOLD', bonusGold);
               setTimeout(() => setFloatingReward(null), 2000);
 
               setVocabRepairModalOpen(false);
@@ -1146,7 +1213,7 @@ const App: React.FC = () => {
 
   const renderLobby = () => {
     // Daily Quest Check
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalTodayDate();
     const claimedToday = (userStats.dailyQuestsClaimed && userStats.dailyQuestsClaimed[today]) || [];
     
     // 1. Practice Volume (Matches Played)
@@ -1269,7 +1336,7 @@ const App: React.FC = () => {
                   claimedToday.includes('quest_repair_5') ? 
                   <span className="text-slate-500 text-[10px] font-bold border border-slate-600 px-2 py-1 rounded bg-slate-800">已领取</span> : 
                   <button onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
+                      const today = getLocalTodayDate();
                       const claimed = (userStats.dailyQuestsClaimed && userStats.dailyQuestsClaimed[today]) || [];
                       if (claimed.includes('quest_repair_5')) return;
 
@@ -1446,7 +1513,7 @@ const App: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10 relative">
                 {floatingReward && (
-                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce text-yellow-400 font-bold text-2xl drop-shadow-lg pointer-events-none whitespace-nowrap bg-black/50 px-4 py-2 rounded-full border border-yellow-500/50 backdrop-blur-md">
+                    <div className="fixed top-24 right-4 z-50 animate-bounce text-yellow-400 font-bold text-xl drop-shadow-lg pointer-events-none whitespace-nowrap bg-black/50 px-3 py-1.5 rounded-full border border-yellow-500/50 backdrop-blur-md">
                         {floatingReward.text}
                     </div>
                 )}
@@ -1887,6 +1954,7 @@ const App: React.FC = () => {
 
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
+      <RewardFlyer items={visualRewards} />
       {currentView === AppView.LOGIN && renderLogin()}
       {currentView === AppView.LOBBY && renderLobby()}
       {currentView === AppView.DATABASE && renderDatabase()}
