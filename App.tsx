@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
@@ -293,6 +293,7 @@ const App: React.FC = () => {
   
   // Login State
   const [loginInput, setLoginInput] = useState('');
+  const [isDataLoaded, setIsDataLoaded] = useState(false); // New flag to prevent overwrite
 
   // Battle State
   const [missionModalOpen, setMissionModalOpen] = useState(false);
@@ -333,7 +334,9 @@ const App: React.FC = () => {
   // --- Persistence & Stats Logic ---
   
   const saveProgress = (stats: UserStats, history: BattleRecord[], mistakesList: WrongAnswer[], mastered: Set<string>) => {
+      // CRITICAL FIX: Only save if we are not Guest and Data IS LOADED
       if (stats.username === 'Guest') return;
+      
       const data = {
           stats,
           history,
@@ -341,13 +344,15 @@ const App: React.FC = () => {
           mastered: Array.from(mastered)
       };
       localStorage.setItem(`kg_user_${stats.username}`, JSON.stringify(data));
+      // console.log("Saved progress for", stats.username);
   };
 
   useEffect(() => {
-      if (currentView !== AppView.LOGIN) {
+      // CRITICAL FIX: Add isDataLoaded check
+      if (currentView !== AppView.LOGIN && isDataLoaded) {
         saveProgress(userStats, battleHistory, mistakes, masteredWords);
       }
-  }, [userStats, battleHistory, mistakes, masteredWords]);
+  }, [userStats, battleHistory, mistakes, masteredWords, currentView, isDataLoaded]);
 
   // Update Daily Quote
   useEffect(() => {
@@ -362,16 +367,22 @@ const App: React.FC = () => {
       
       const savedData = localStorage.getItem(`kg_user_${username}`);
       if (savedData) {
-          const parsed = JSON.parse(savedData);
-          setUserStats(parsed.stats);
-          setBattleHistory(parsed.history);
-          setMistakes(parsed.mistakes);
-          setMasteredWords(new Set(parsed.mastered));
-          alert(`欢迎回来，${username}！档案读取成功。`);
+          try {
+            const parsed = JSON.parse(savedData);
+            setUserStats(parsed.stats);
+            setBattleHistory(parsed.history);
+            setMistakes(parsed.mistakes);
+            setMasteredWords(new Set(parsed.mastered));
+            alert(`欢迎回来，${username}！档案读取成功。`);
+          } catch (e) {
+            console.error("Save file corrupted", e);
+            setUserStats(prev => ({ ...prev, username }));
+          }
       } else {
           setUserStats(prev => ({ ...prev, username }));
           alert(`新兵报到！欢迎加入知识荣耀，${username}。`);
       }
+      setIsDataLoaded(true); // CRITICAL FIX: Mark data as loaded to enable saving
       setCurrentView(AppView.LOBBY);
   };
 
@@ -700,6 +711,7 @@ const App: React.FC = () => {
               setCurrentView(AppView.LOGIN);
               setLoginInput('');
               setIsAdminMode(false);
+              setIsDataLoaded(false); // Reset loaded flag
               setConfirmModal(prev => ({ ...prev, isOpen: false }));
           }
       });
@@ -952,8 +964,16 @@ const App: React.FC = () => {
             <div className="space-y-3 mb-4 w-full">
                 {isVocab && (() => {
                         const w = currentItem as Word;
-                        const distractors = VOCABULARY_DATA.filter(wd => wd.id !== w.id).slice(0, 3);
-                        const currentOptions = [w, ...distractors].sort((a, b) => a.id.localeCompare(b.id)); 
+                        // useMemo to prevent re-shuffling on every render/state update
+                        const currentOptions = React.useMemo(() => {
+                           // 1. Get other words for distractors
+                           const otherWords = VOCABULARY_DATA.filter(wd => wd.id !== w.id);
+                           // 2. Randomly pick 3 distractors
+                           const distractors = otherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
+                           // 3. Combine with correct answer and shuffle the final list
+                           return [w, ...distractors].sort(() => 0.5 - Math.random());
+                        }, [w.id]); // Recalculate only when question changes
+
                         return currentOptions.map((opt) => (
                             <button key={opt.id} onClick={() => handleAnswer(opt.id === w.id, w.id)} disabled={answerStatus !== 'IDLE'} className={`w-full p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${answerStatus === 'IDLE' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : opt.id === w.id ? 'bg-green-500/20 border-green-500 text-green-100' : 'bg-slate-800 border-slate-700 opacity-50'}`}>
                                 <span className="font-bold mr-2 text-sm opacity-50">{opt.partOfSpeech}</span>{opt.chinese}
