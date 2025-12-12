@@ -594,7 +594,7 @@ export const LIBRARY_STRUCTURE: LibraryCategory[] = [
     id: 'compulsory_1',
     name: '必修第一册',
     description: 'Textbook 1',
-    units: ['Welcome Unit', 'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5', '全册综合测试']
+    units: ['全册综合测试', 'Welcome Unit', 'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5']
   },
   {
     id: 'compulsory_2',

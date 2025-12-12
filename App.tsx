@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent, CircleDollarSign, Wrench } from 'lucide-react';
+import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent, CircleDollarSign, Wrench, Activity, BarChart3, PieChart } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
 import { VOCABULARY_DATA, EXAM_DATA, UNITS, getWordsByUnit, getExamQuestionsByUnit, LIBRARY_STRUCTURE } from './services/vocabData';
@@ -175,11 +174,31 @@ const createWordMask = (word: string) => {
 };
 
 const speak = (text: string) => {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) {
+        console.warn("Browser does not support TTS");
+        return;
+    }
+    
+    // Always cancel previous speech
     window.speechSynthesis.cancel();
+
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
     u.rate = 0.8;
+    u.volume = 1.0;
+
+    // Simple robust voice selection
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+        // Try to find a good English voice
+        const preferredVoice = voices.find(v => v.lang === 'en-US' && !v.name.includes('Google')) || 
+                               voices.find(v => v.lang === 'en-US') || 
+                               voices.find(v => v.lang.startsWith('en'));
+        if (preferredVoice) {
+            u.voice = preferredVoice;
+        }
+    }
+    
     window.speechSynthesis.speak(u);
 };
 
@@ -225,7 +244,7 @@ const RankDisplay: React.FC<{ stats: UserStats, onClick?: () => void }> = ({ sta
       <div className="bg-slate-900/40 w-full rounded-[10px] backdrop-blur-sm p-3 flex items-center relative z-10">
           <div className="flex-1 z-10">
               <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-white/80 tracking-wider">SEASON RANK</span>
+                  <span className="text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-white/80 tracking-wider">当前段位</span>
               </div>
               <h1 className={`text-xl font-black italic tracking-wide ${config.iconColor} drop-shadow-md flex items-center gap-2`}>
                   {displayTitle} <span className="text-sm font-bold text-white not-italic">{subRank}</span>
@@ -250,6 +269,66 @@ const RankDisplay: React.FC<{ stats: UserStats, onClick?: () => void }> = ({ sta
       </div>
     </div>
   );
+};
+
+const RadarChart: React.FC<{ stats: UserStats, masteredWordsCount: number, battleHistory: BattleRecord[] }> = ({ stats, masteredWordsCount, battleHistory }) => {
+    // Calculate Pentagon Data
+    const vocabScore = Math.min((masteredWordsCount / 50) * 100, 100); // Assume 50 words is base target
+    const tenacityScore = Math.min(((stats.loginStreak * 5) + (stats.studyMinutes / 10)), 100);
+    
+    const examMatches = battleHistory.filter(b => b.mode === 'EXAM');
+    const avgGrammar = examMatches.length > 0 ? (examMatches.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / examMatches.length) * 100 : 20; // Base 20
+    
+    const dictationMatches = battleHistory.filter(b => b.mode === 'DICTATION');
+    const avgListening = dictationMatches.length > 0 ? (dictationMatches.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / dictationMatches.length) * 100 : 20;
+
+    const burstScore = battleHistory.length > 0 ? Math.min(Math.max(...battleHistory.map(b => b.score / 10 * 10)), 100) : 20; // Normalize score? Assume max score usually 100-ish
+
+    const data = [
+        { label: '词汇', value: vocabScore },
+        { label: '语法', value: avgGrammar },
+        { label: '听力', value: avgListening },
+        { label: '毅力', value: tenacityScore },
+        { label: '爆发', value: burstScore }
+    ];
+
+    const size = 100;
+    const center = size;
+    const radius = 70;
+    const angleSlice = (Math.PI * 2) / 5;
+
+    const points = data.map((d, i) => {
+        const value = Math.max(d.value, 15); // Min display value for visual
+        const r = (value / 100) * radius;
+        const x = center + r * Math.cos(i * angleSlice - Math.PI / 2);
+        const y = center + r * Math.sin(i * angleSlice - Math.PI / 2);
+        return `${x},${y}`;
+    }).join(' ');
+
+    const bgPoints = Array.from({length: 5}).map((_, i) => {
+        const x = center + radius * Math.cos(i * angleSlice - Math.PI / 2);
+        const y = center + radius * Math.sin(i * angleSlice - Math.PI / 2);
+        return `${x},${y}`;
+    }).join(' ');
+
+    return (
+        <div className="flex flex-col items-center">
+            <div className="relative w-[200px] h-[200px]">
+                <svg width="200" height="200" viewBox="0 0 200 200">
+                    {/* Background Pentagon */}
+                    <polygon points={bgPoints} fill="rgba(30, 41, 59, 0.5)" stroke="#475569" strokeWidth="1" />
+                    {/* Data Polygon */}
+                    <polygon points={points} fill="rgba(6, 182, 212, 0.4)" stroke="#06b6d4" strokeWidth="2" />
+                    {/* Labels (Approximate positions) */}
+                    <text x="100" y="20" textAnchor="middle" fill="#94a3b8" fontSize="10">词汇</text>
+                    <text x="190" y="85" textAnchor="middle" fill="#94a3b8" fontSize="10">语法</text>
+                    <text x="160" y="190" textAnchor="middle" fill="#94a3b8" fontSize="10">听力</text>
+                    <text x="40" y="190" textAnchor="middle" fill="#94a3b8" fontSize="10">毅力</text>
+                    <text x="10" y="85" textAnchor="middle" fill="#94a3b8" fontSize="10">爆发</text>
+                </svg>
+            </div>
+        </div>
+    );
 };
 
 const WordCard: React.FC<{ 
@@ -359,6 +438,9 @@ const App: React.FC = () => {
   
   // Expanded Categories State (Default to empty set = all collapsed)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  
+  // Profile State
+  const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
 
   // Modals & UI
   const [repairModalOpen, setRepairModalOpen] = useState(false);
@@ -1219,11 +1301,11 @@ const App: React.FC = () => {
       <div className="flex justify-between items-center w-full max-w-sm mb-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700 shadow-lg">
           <div className="flex gap-6">
               <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total EXP</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">总经验 (EXP)</span>
                   <span className="font-black text-xl text-purple-400 flex items-center gap-1"><Zap size={14} className="fill-current"/> {userStats.exp}</span>
               </div>
               <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gold</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">总金币 (Gold)</span>
                   <span className="font-black text-xl text-yellow-400 flex items-center gap-1"><CircleDollarSign size={14} className="fill-current"/> {userStats.gold}</span>
               </div>
           </div>
@@ -1246,7 +1328,7 @@ const App: React.FC = () => {
                        <button key={unit} onClick={() => handleUnitClick(unit)} className={`w-full p-3 rounded-xl flex justify-between items-center group transition-all border ${unit === '全册综合测试' ? 'bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border-yellow-500/50 shadow-lg shadow-yellow-900/20 hover:border-yellow-400' : 'bg-slate-800 hover:bg-slate-700 border-slate-600'}`}>
                            <div className="flex items-center gap-3">
                                <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-[10px] border ${unit === '全册综合测试' ? 'bg-yellow-500 text-slate-900 border-yellow-400 font-bold' : 'bg-slate-900 text-slate-500 border-slate-700 group-hover:border-yellow-500 group-hover:text-yellow-500'}`}>
-                                   {unit === '全册综合测试' ? <Crown size={14}/> : idx + 1}
+                                   {unit === '全册综合测试' ? <Crown size={14}/> : (category.units[0] === '全册综合测试' ? idx : idx + 1)}
                                </span>
                                <span className={`font-semibold text-sm ${unit === '全册综合测试' ? 'text-yellow-400' : 'text-white'}`}>{unit}</span>
                            </div>
@@ -1266,9 +1348,9 @@ const App: React.FC = () => {
                   <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2"><Target className="text-red-500" />行动代号: {pendingUnitStart}</h3>
                   <p className="text-slate-400 text-xs mb-6">请选择本次作战的具体任务类型</p>
                   <div className="space-y-3">
-                      <button onClick={() => startQuiz('VOCAB')} className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 p-4 rounded-xl flex items-center justify-between group border border-blue-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-blue-800/50 flex items-center justify-center"><Zap size={20} className="text-blue-200" /></div><div className="text-left"><div className="font-bold text-white">词汇突袭</div><div className="text-[10px] text-blue-200">Rapid Vocabulary Raid</div></div></div><ChevronRight className="text-blue-200" /></button>
-                      <button onClick={() => startQuiz('DICTATION')} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 p-4 rounded-xl flex items-center justify-between group border border-emerald-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center"><Headphones size={20} className="text-emerald-200" /></div><div className="text-left"><div className="font-bold text-white">通信破译 (听写)</div><div className="text-[10px] text-emerald-200">Signal Decryption Ops</div></div></div><ChevronRight className="text-emerald-200" /></button>
-                      <button onClick={() => startQuiz('EXAM')} className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 p-4 rounded-xl flex items-center justify-between group border border-purple-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-purple-800/50 flex items-center justify-center"><GraduationCap size={20} className="text-purple-200" /></div><div className="text-left"><div className="font-bold text-white">语法特训</div><div className="text-[10px] text-purple-200">Grammar & Exams</div></div></div><ChevronRight className="text-purple-200" /></button>
+                      <button onClick={() => startQuiz('VOCAB')} className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 p-4 rounded-xl flex items-center justify-between group border border-blue-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-blue-800/50 flex items-center justify-center"><Zap size={20} className="text-blue-200" /></div><div className="text-left"><div className="font-bold text-white">词汇突袭</div><div className="text-[10px] text-blue-200">快速词汇突袭</div></div></div><ChevronRight className="text-blue-200" /></button>
+                      <button onClick={() => startQuiz('DICTATION')} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 p-4 rounded-xl flex items-center justify-between group border border-emerald-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center"><Headphones size={20} className="text-emerald-200" /></div><div className="text-left"><div className="font-bold text-white">通信破译 (听写)</div><div className="text-[10px] text-emerald-200">信号破译行动</div></div></div><ChevronRight className="text-emerald-200" /></button>
+                      <button onClick={() => startQuiz('EXAM')} className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 p-4 rounded-xl flex items-center justify-between group border border-purple-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-purple-800/50 flex items-center justify-center"><GraduationCap size={20} className="text-purple-200" /></div><div className="text-left"><div className="font-bold text-white">语法特训</div><div className="text-[10px] text-purple-200">语法与考试</div></div></div><ChevronRight className="text-purple-200" /></button>
                   </div>
               </div>
           </div>
@@ -1284,28 +1366,28 @@ const App: React.FC = () => {
                     <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full"></div>
                     <Trophy size={80} className="text-yellow-400 relative z-10" />
                 </div>
-                <h2 className="text-3xl font-black text-white mb-2">VICTORY</h2>
+                <h2 className="text-3xl font-black text-white mb-2">挑战成功</h2>
                 <div className="text-6xl font-black text-yellow-400 mb-6 drop-shadow-glow">{quizScore}</div>
                 <p className="text-slate-400 mb-6 font-mono text-xs">{rewardSummary.message}</p>
                 <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
                     <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
-                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">Gold</div>
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">金币</div>
                         <div className="text-xl font-bold text-yellow-400">+{rewardSummary.gold}</div>
                     </div>
                     <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
-                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">EXP</div>
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">经验</div>
                         <div className="text-xl font-bold text-purple-400">+{rewardSummary.exp}</div>
                     </div>
                 </div>
                 <button onClick={() => setCurrentView(AppView.LOBBY)} className="w-full max-w-xs bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-white shadow-lg transition-all">
-                    返回大厅 (Return to Base)
+                    返回大厅
                 </button>
             </div>
         );
     }
 
     const currentQ = quizQuestions[currentQuestionIndex];
-    if (!currentQ) return <div>Loading...</div>;
+    if (!currentQ) return <div>加载中...</div>;
     const progress = ((currentQuestionIndex) / quizQuestions.length) * 100;
 
     return (
@@ -1314,7 +1396,7 @@ const App: React.FC = () => {
                 <button onClick={handleExitBattle} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"><X size={20}/></button>
                 <div className="flex-1 mx-4">
                     <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                        <span>Wave {currentQuestionIndex + 1}/{quizQuestions.length}</span>
+                        <span>进度 {currentQuestionIndex + 1}/{quizQuestions.length}</span>
                         <span>{Math.round(progress)}%</span>
                     </div>
                     <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -1335,7 +1417,7 @@ const App: React.FC = () => {
                     <div className="w-full max-w-md animate-fade-in relative">
                         <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 p-6 rounded-3xl border border-slate-600/50 shadow-2xl mb-8 relative overflow-hidden">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
-                            <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">Tactical Grammar</span>
+                            <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">语法战术</span>
                             <p className="text-xl font-medium text-white leading-relaxed">{(currentQ as ExamQuestion).question}</p>
                         </div>
                         <div className="space-y-3">
@@ -1410,7 +1492,7 @@ const App: React.FC = () => {
                              <p className="mt-4 text-slate-400 text-sm font-medium">点击图标播放读音</p>
                         </div>
                         <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-8 max-w-xs mx-auto">
-                            <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">Definition</span>
+                            <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">释义</span>
                             <span className="text-lg font-bold text-white">{(currentQ as Word).chinese}</span>
                         </div>
                         <div className="relative max-w-xs mx-auto">
@@ -1420,7 +1502,7 @@ const App: React.FC = () => {
                                 onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
                                 disabled={answerStatus !== 'IDLE'}
                                 className="w-full bg-slate-800 border-b-2 border-slate-600 px-4 py-3 text-white text-center text-2xl tracking-[0.2em] font-mono focus:border-emerald-500 outline-none uppercase bg-transparent transition-colors placeholder:text-slate-700"
-                                placeholder="TYPE HERE"
+                                placeholder="在此输入"
                                 autoFocus
                                 autoComplete="off"
                              />
@@ -1445,11 +1527,11 @@ const App: React.FC = () => {
                             </div>
                             <div className="flex-1">
                                 <h3 className={`text-2xl font-black ${answerStatus === 'CORRECT' ? 'text-emerald-100' : 'text-red-100'}`}>
-                                    {answerStatus === 'CORRECT' ? 'Excellent!' : 'Incorrect'}
+                                    {answerStatus === 'CORRECT' ? '回答正确!' : '回答错误'}
                                 </h3>
                                 {answerStatus === 'WRONG' && (
                                     <div className="mt-2">
-                                        <p className="text-red-200 text-xs font-bold uppercase mb-1">Correct Answer</p>
+                                        <p className="text-red-200 text-xs font-bold uppercase mb-1">正确答案</p>
                                         <p className="text-white font-bold text-lg">
                                             {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
                                         </p>
@@ -1457,7 +1539,7 @@ const App: React.FC = () => {
                                             {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).chinese : (currentQ as ExamQuestion).explanation}
                                         </p>
                                         <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
-                                            <Shield size={10} /> 已加入错题库 (Added to Armory)
+                                            <Shield size={10} /> 已加入错题库
                                         </div>
                                     </div>
                                 )}
@@ -1467,7 +1549,7 @@ const App: React.FC = () => {
                             onClick={handleNextQuestionClick}
                             className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${answerStatus === 'CORRECT' ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-white text-red-900 hover:bg-red-50'}`}
                         >
-                            下一题 Next Question
+                            下一题
                             <span className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center text-xs font-mono">
                                 {countdown}
                             </span>
@@ -1501,9 +1583,9 @@ const App: React.FC = () => {
                             </div>
                             <div className="text-slate-300 font-bold text-sm">
                                 {mistake.type === 'VOCAB' || mistake.type === 'DICTATION' ? (
-                                    <span>Vocabulary Repair: <span className="text-white">{(VOCABULARY_DATA.find(w => w.id === mistake.targetId)?.english) || 'Unknown'}</span></span>
+                                    <span>词汇修复: <span className="text-white">{(VOCABULARY_DATA.find(w => w.id === mistake.targetId)?.english) || '未知'}</span></span>
                                 ) : (
-                                    <span>Grammar Repair: {mistake.unit} Q</span>
+                                    <span>语法修复: {mistake.unit} 题</span>
                                 )}
                             </div>
                             <div className="text-xs text-red-400 mt-1">错误次数: {mistake.count}</div>
@@ -1512,7 +1594,7 @@ const App: React.FC = () => {
                             onClick={() => mistake.type === 'EXAM' ? startExamRepair(mistake.targetId) : startVocabRepair(mistake.targetId)}
                             className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                         >
-                            REPAIR
+                            修复
                         </button>
                     </div>
                 ))}
@@ -1521,74 +1603,249 @@ const App: React.FC = () => {
       </div>
   );
 
-  const renderProfile = () => (
+  const renderProfile = () => {
+      // --- Data Preparation for Profile ---
+      const mvpCount = battleHistory.filter(r => r.rank === 'S').length;
+      
+      // Radar Data Calculation
+      const vocabScore = Math.min((masteredWords.size / 50) * 100, 100); 
+      const examMatches = battleHistory.filter(b => b.mode === 'EXAM');
+      const avgGrammar = examMatches.length > 0 ? (examMatches.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / examMatches.length) * 100 : 20; 
+      const dictationMatches = battleHistory.filter(b => b.mode === 'DICTATION');
+      const avgListening = dictationMatches.length > 0 ? (dictationMatches.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / dictationMatches.length) * 100 : 20;
+      const tenacityScore = Math.min(((userStats.loginStreak * 5) + (userStats.studyMinutes / 10)), 100) || 20;
+      const burstScore = battleHistory.length > 0 ? Math.min(Math.max(...battleHistory.map(b => (b.score / b.maxScore) * 100)), 100) : 20;
+
+      const radarData = [
+          { label: '词汇', value: vocabScore },
+          { label: '语法', value: avgGrammar },
+          { label: '听力', value: avgListening },
+          { label: '毅力', value: tenacityScore },
+          { label: '爆发', value: burstScore }
+      ];
+
+      // Radar SVG logic
+      const size = 120;
+      const center = size;
+      const radius = 80;
+      const angleSlice = (Math.PI * 2) / 5;
+      const points = radarData.map((d, i) => {
+          const value = Math.max(d.value, 15);
+          const r = (value / 100) * radius;
+          const x = center + r * Math.cos(i * angleSlice - Math.PI / 2);
+          const y = center + r * Math.sin(i * angleSlice - Math.PI / 2);
+          return `${x},${y}`;
+      }).join(' ');
+      const bgPoints = Array.from({length: 5}).map((_, i) => {
+          const x = center + radius * Math.cos(i * angleSlice - Math.PI / 2);
+          const y = center + radius * Math.sin(i * angleSlice - Math.PI / 2);
+          return `${x},${y}`;
+      }).join(' ');
+
+      // Season Journey Data (Semester Stats)
+      const allUnits = LIBRARY_STRUCTURE[0].units;
+      const totalWords = VOCABULARY_DATA.length;
+      const masteredCount = masteredWords.size;
+      const lexicalCoverage = Math.round((masteredCount / totalWords) * 100) || 0;
+      const totalBattles = battleHistory.length;
+      const correctRate = userStats.matchesPlayed > 0 ? Math.round((userStats.correctCount / (battleHistory.reduce((acc, curr) => acc + curr.maxScore/10, 0) || 1)) * 100) : 0;
+      const peakScore = battleHistory.length > 0 ? Math.max(...battleHistory.map(b => b.score)) : 0;
+
+      const getUnitStatus = (unit: string) => {
+          const history = battleHistory.filter(r => r.unit === unit);
+          if (history.length === 0) return 'UNPLAYED';
+          const maxRank = history.reduce((prev, curr) => (curr.rank === 'S' || (curr.rank === 'A' && prev !== 'S') || (curr.rank === 'B' && prev === 'C')) ? curr.rank : prev, 'C');
+          return maxRank;
+      };
+
+      const rankInfo = getRankInfo(userStats.exp);
+
+      return (
       <div className="h-full overflow-y-auto bg-slate-900 pb-24">
-           {/* Header Cover */}
-           <div className="h-40 bg-gradient-to-r from-slate-800 to-slate-900 relative">
-               <div className="absolute -bottom-12 left-6">
-                   <div className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 overflow-hidden relative group cursor-pointer" onClick={() => setAvatarModalOpen(true)}>
-                       <img src={userStats.avatar} alt="User" className="w-full h-full object-cover" />
-                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Edit2 className="text-white" size={20}/></div>
+           {/* 1. Hero Card Area */}
+           <div className="relative pt-6 px-4 mb-4">
+               <div className={`absolute top-0 left-0 w-full h-48 bg-gradient-to-b ${rankInfo.config.color} opacity-20 rounded-b-[3rem]`}></div>
+               
+               <div className="relative z-10 flex flex-col items-center">
+                   {/* Avatar with Rank Frame */}
+                   <div className="relative mb-3 cursor-pointer group" onClick={() => setAvatarModalOpen(true)}>
+                       <div className="w-24 h-24 rounded-full border-4 border-slate-800 bg-slate-900 overflow-hidden relative z-10">
+                           <img src={userStats.avatar} alt="User" className="w-full h-full object-cover" />
+                       </div>
+                       {/* Decorative Frame */}
+                       <div className="absolute -inset-2 rounded-full border-2 border-yellow-500/50 border-dashed animate-spin-slow pointer-events-none"></div>
+                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-black/80 px-3 py-0.5 rounded-full border border-yellow-500/50 z-20">
+                           <span className="text-[10px] font-bold text-yellow-400 whitespace-nowrap">{userStats.rankTitle}</span>
+                       </div>
+                       <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"><Edit2 size={24} className="text-white"/></div>
+                   </div>
+
+                   <h1 className="text-2xl font-black text-white mt-2">{userStats.username}</h1>
+                   <div className="text-xs text-slate-400 font-mono mb-4">UID: {Math.abs(userStats.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)).toString().padStart(8, '0')}</div>
+
+                   {/* KDA Stats Row */}
+                   <div className="flex gap-4 w-full justify-center">
+                       <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 min-w-[80px] text-center">
+                           <div className="text-[10px] text-slate-500 uppercase font-bold">总场次</div>
+                           <div className="text-lg font-black text-white">{userStats.matchesPlayed}</div>
+                       </div>
+                       <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 min-w-[80px] text-center">
+                           <div className="text-[10px] text-slate-500 uppercase font-bold">胜率</div>
+                           <div className="text-lg font-black text-emerald-400">{correctRate}%</div>
+                       </div>
+                       <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 min-w-[80px] text-center relative overflow-hidden">
+                           <div className="absolute top-0 right-0 w-8 h-8 bg-yellow-500/20 rounded-bl-full"></div>
+                           <div className="text-[10px] text-slate-500 uppercase font-bold">MVP</div>
+                           <div className="text-lg font-black text-yellow-400">{mvpCount}</div>
+                       </div>
                    </div>
                </div>
            </div>
-           
-           <div className="mt-14 px-6">
-               <div className="flex justify-between items-start mb-6">
-                   <div>
-                       <h1 className="text-2xl font-black text-white">{userStats.username}</h1>
-                       <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mt-1">
-                           <span>UID: {Math.abs(userStats.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)).toString().padStart(8, '0')}</span>
-                           <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
-                           <span>Joined {new Date().getFullYear()}</span>
-                       </div>
-                   </div>
-                   <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><LogOut size={20} /></button>
-               </div>
 
-               {/* Stats Grid */}
-               <div className="grid grid-cols-3 gap-3 mb-8">
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">场次 (Matches)</div>
-                       <div className="text-xl font-black text-white">{userStats.matchesPlayed}</div>
-                   </div>
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">胜率 (Win Rate)</div>
-                       <div className="text-xl font-black text-white">{userStats.matchesPlayed > 0 ? Math.round((userStats.correctCount / (battleHistory.reduce((acc, curr) => acc + curr.maxScore/10, 0) || 1)) * 100) : 0}%</div>
-                   </div>
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">时长(h)</div>
-                       <div className="text-xl font-black text-white">{(userStats.studyMinutes / 60).toFixed(1)}</div>
+           {/* 2. Radar Chart Section */}
+           <div className="px-4 mb-6">
+               <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 flex flex-col items-center relative overflow-hidden">
+                   <div className="absolute top-2 left-3 flex items-center gap-1 text-slate-400 text-xs font-bold"><Activity size={14}/> 五维能力图</div>
+                   <div className="relative w-[240px] h-[240px] mt-2">
+                       <svg width="240" height="240" viewBox="0 0 240 240">
+                           {/* BG */}
+                           <polygon points={bgPoints} fill="rgba(15, 23, 42, 0.5)" stroke="#334155" strokeWidth="1" />
+                           <line x1={center} y1={center} x2={center} y2={center - radius} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 2"/>
+                           {/* Data */}
+                           <polygon points={points} fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" strokeWidth="2" className="drop-shadow-[0_0_10px_rgba(56,189,248,0.5)]" />
+                           {/* Dots */}
+                           {radarData.map((d, i) => {
+                               const value = Math.max(d.value, 15);
+                               const r = (value / 100) * radius;
+                               const x = center + r * Math.cos(i * angleSlice - Math.PI / 2);
+                               const y = center + r * Math.sin(i * angleSlice - Math.PI / 2);
+                               return <circle key={i} cx={x} cy={y} r="3" fill="#fff" />;
+                           })}
+                           {/* Labels */}
+                           <text x="120" y="25" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">词汇</text>
+                           <text x="225" y="100" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">语法</text>
+                           <text x="190" y="220" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">听力</text>
+                           <text x="50" y="220" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">毅力</text>
+                           <text x="15" y="100" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">爆发</text>
+                       </svg>
                    </div>
                </div>
+           </div>
+
+           {/* 3. Season Journey Section (Refactored) */}
+           <div className="px-4 mb-6">
+               <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
+                   {/* Header Toggle */}
+                   <button 
+                       onClick={() => setIsSeasonExpanded(!isSeasonExpanded)}
+                       className="w-full p-4 flex items-center justify-between bg-gradient-to-r from-slate-800 to-slate-800/50 hover:bg-slate-700/50 transition-colors"
+                   >
+                       <div className="flex items-center gap-2">
+                           <Map size={18} className="text-blue-400"/>
+                           <span className="text-white font-bold text-sm">S1 赛季：必修第一册 (2024 Fall)</span>
+                       </div>
+                       {isSeasonExpanded ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
+                   </button>
+
+                   {/* Collapsed State: Simple Progress */}
+                   {!isSeasonExpanded && (
+                       <div className="px-4 pb-4 pt-0 animate-fade-in">
+                           <div className="flex justify-between text-[10px] text-slate-500 mb-1 mt-2">
+                               <span>赛季进度 (Semester Progress)</span>
+                               <span>{lexicalCoverage}%</span>
+                           </div>
+                           <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                               <div className="h-full bg-blue-500" style={{ width: `${lexicalCoverage}%` }}></div>
+                           </div>
+                       </div>
+                   )}
+
+                   {/* Expanded State: Full Dashboard */}
+                   {isSeasonExpanded && (
+                       <div className="p-4 border-t border-slate-700/50 bg-slate-900/30 animate-fade-in">
+                           {/* Data Grid */}
+                           <div className="grid grid-cols-2 gap-3 mb-6">
+                               <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                                   <div className="text-[10px] text-slate-500 flex items-center gap-1 mb-1"><PieChart size={12}/> 词汇覆盖率</div>
+                                   <div className="text-xl font-black text-white">{lexicalCoverage}<span className="text-xs font-normal text-slate-500">%</span></div>
+                                   <div className="text-[10px] text-slate-600">{masteredCount} / {totalWords} 词</div>
+                               </div>
+                               <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                                   <div className="text-[10px] text-slate-500 flex items-center gap-1 mb-1"><Sword size={12}/> 实战活跃度</div>
+                                   <div className="text-xl font-black text-blue-400">{totalBattles}</div>
+                                   <div className="text-[10px] text-slate-600">Total Matches</div>
+                               </div>
+                               <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                                   <div className="text-[10px] text-slate-500 flex items-center gap-1 mb-1"><Target size={12}/> 知识准确率</div>
+                                   <div className="text-xl font-black text-green-400">{correctRate}<span className="text-xs font-normal text-slate-500">%</span></div>
+                                   <div className="text-[10px] text-slate-600">Global Accuracy</div>
+                               </div>
+                               <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                                   <div className="text-[10px] text-slate-500 flex items-center gap-1 mb-1"><TrendingUp size={12}/> 巅峰表现</div>
+                                   <div className="text-xl font-black text-yellow-400">{peakScore}</div>
+                                   <div className="text-[10px] text-slate-600">Highest Score</div>
+                               </div>
+                           </div>
+
+                           {/* Compact Unit List */}
+                           <div className="space-y-2">
+                               <div className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">单元成就 (Unit Achievements)</div>
+                               {allUnits.map((unit, idx) => {
+                                   const status = getUnitStatus(unit);
+                                   let badgeClass = "bg-slate-700 text-slate-500";
+                                   let badgeText = "-";
+                                   
+                                   if (status === 'S') { badgeClass = "bg-yellow-500 text-black font-black"; badgeText = "S"; }
+                                   else if (status === 'A') { badgeClass = "bg-purple-600 text-white font-bold"; badgeText = "A"; }
+                                   else if (status === 'B') { badgeClass = "bg-blue-600 text-white font-bold"; badgeText = "B"; }
+                                   else if (status === 'C') { badgeClass = "bg-slate-600 text-white"; badgeText = "C"; }
+
+                                   return (
+                                       <div key={unit} className="flex justify-between items-center bg-slate-800/50 p-2 rounded-lg border border-slate-700/50">
+                                           <span className="text-xs font-bold text-slate-300">{unit}</span>
+                                           <span className={`w-6 h-6 flex items-center justify-center rounded text-xs ${badgeClass}`}>
+                                               {badgeText}
+                                           </span>
+                                       </div>
+                                   );
+                               })}
+                           </div>
+                       </div>
+                   )}
+               </div>
+           </div>
+
+           {/* 4. Menu Actions */}
+           <div className="px-4 space-y-3">
+               <button onClick={() => setShopAdminOpen(true)} className="w-full bg-gradient-to-r from-yellow-700/50 to-orange-700/50 hover:from-yellow-600/50 hover:to-orange-600/50 border border-yellow-500/30 p-4 rounded-xl flex items-center justify-between group transition-all">
+                   <div className="flex items-center gap-4">
+                       <div className="bg-black/30 p-2 rounded-lg text-yellow-400"><ShoppingBag size={20} /></div>
+                       <div className="text-left">
+                           <div className="font-bold text-white group-hover:text-yellow-200">补给站 (Shop)</div>
+                           <div className="text-[10px] text-yellow-500/70">兑换奖励</div>
+                       </div>
+                   </div>
+                   <ChevronRight size={18} className="text-yellow-500/50" />
+               </button>
                
-               {/* Menu List */}
-               <div className="space-y-2">
-                   <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-500"><ShoppingBag size={20} /></div>
-                           <span className="font-bold text-slate-200">奖励兑换商城</span>
+               <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-750 transition-colors border border-slate-700">
+                   <div className="flex items-center gap-4">
+                       <div className="bg-slate-900 p-2 rounded-lg text-blue-400"><History size={20} /></div>
+                       <div className="text-left">
+                           <div className="font-bold text-slate-200">作战记录 (History)</div>
+                           <div className="text-[10px] text-slate-500">查看过往战绩</div>
                        </div>
-                       <ChevronRight size={18} className="text-slate-500" />
-                   </button>
-                   <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-blue-500/20 p-2 rounded-lg text-blue-500"><History size={20} /></div>
-                           <span className="font-bold text-slate-200">历史战绩</span>
-                       </div>
-                       <ChevronRight size={18} className="text-slate-500" />
-                   </button>
-                   <button className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors opacity-50 cursor-not-allowed">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-purple-500/20 p-2 rounded-lg text-purple-500"><Award size={20} /></div>
-                           <span className="font-bold text-slate-200">成就 (Coming Soon)</span>
-                       </div>
-                       <Lock size={16} className="text-slate-500" />
-                   </button>
-               </div>
+                   </div>
+                   <ChevronRight size={18} className="text-slate-500" />
+               </button>
+
+               <button onClick={handleLogout} className="w-full p-4 rounded-xl flex items-center justify-center gap-2 text-slate-500 hover:text-red-400 hover:bg-red-950/20 transition-all text-xs font-bold mt-6">
+                   <LogOut size={14}/> 退出登录
+               </button>
            </div>
       </div>
-  );
+      );
+  };
 
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
@@ -1607,8 +1864,8 @@ const App: React.FC = () => {
                   <h3 className="text-lg font-bold text-white mb-2">{confirmModal.title}</h3>
                   <p className="text-sm text-slate-400 mb-6">{confirmModal.message}</p>
                   <div className="flex gap-3">
-                      <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="flex-1 py-2.5 rounded-lg bg-slate-700 text-slate-300 font-bold text-sm">Cancel</button>
-                      <button onClick={confirmModal.onConfirm} className="flex-1 py-2.5 rounded-lg bg-cyan-600 text-white font-bold text-sm hover:bg-cyan-500">Confirm</button>
+                      <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="flex-1 py-2.5 rounded-lg bg-slate-700 text-slate-300 font-bold text-sm">取消</button>
+                      <button onClick={confirmModal.onConfirm} className="flex-1 py-2.5 rounded-lg bg-cyan-600 text-white font-bold text-sm hover:bg-cyan-500">确认</button>
                   </div>
               </div>
           </div>
@@ -1617,7 +1874,7 @@ const App: React.FC = () => {
       {avatarModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setAvatarModalOpen(false)}>
             <div className="bg-slate-800 w-full max-w-md rounded-2xl p-6 border border-slate-700" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold text-white mb-4">Select Avatar</h3>
+                <h3 className="text-xl font-bold text-white mb-4">选择英雄头像</h3>
                 <div className="grid grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto p-1">
                     {HERO_AVATARS.map(hero => (
                         <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-700 transition-colors">
@@ -1634,7 +1891,7 @@ const App: React.FC = () => {
            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => setRankModalOpen(false)}>
                <div className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
                     <RankDisplay stats={userStats} />
-                    <div className="mt-6 text-center text-slate-400 text-xs">Tap outside to close</div>
+                    <div className="mt-6 text-center text-slate-400 text-xs">点击外部关闭</div>
                </div>
            </div>
       )}
@@ -1643,11 +1900,11 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setShowRulesModal(false)}>
               <div className="bg-slate-800 w-full max-w-md rounded-2xl p-6 border border-slate-700 relative" onClick={e => e.stopPropagation()}>
                   <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={20}/></button>
-                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Info size={20} className="text-cyan-400"/> Game Rules</h3>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Info size={20} className="text-cyan-400"/> 游戏规则</h3>
                   <div className="space-y-4 text-sm text-slate-300">
-                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Rank System</strong>每获得 5000 EXP 获得一颗星。积累星星提升段位。</div>
-                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Battle Rewards</strong>实战中正确率超过 50% 即可获得经验和金币。表现越好奖励越丰厚。</div>
-                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Armory</strong>错题会被自动收集。在军械库中修复错题可以消除它们。</div>
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">段位系统 (Rank System)</strong>每获得 5000 EXP 获得一颗星。积累星星提升段位。</div>
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">实战奖励 (Battle Rewards)</strong>实战中正确率超过 50% 即可获得经验和金币。表现越好奖励越丰厚。</div>
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">军械库 (Armory)</strong>错题会被自动收集。在军械库中修复错题可以消除它们，并获得额外奖励。</div>
                   </div>
               </div>
           </div>
@@ -1668,7 +1925,7 @@ const App: React.FC = () => {
                                 key={idx}
                                 onClick={() => handleRepairAnswer(idx === activeRepairQuestion.correctAnswer)}
                                 className="w-full p-4 rounded-xl bg-slate-800 text-left text-slate-300 hover:bg-purple-900/40 hover:text-purple-200 hover:border-purple-500/50 border border-slate-700 transition-all active:scale-[0.98]"
-                               >
+                                >
                                    <span className="font-mono opacity-50 mr-2">{String.fromCharCode(65 + idx)}.</span> {opt}
                                </button>
                            ))}
@@ -1682,7 +1939,7 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setVocabRepairModalOpen(false)}>
               <div className="w-full max-w-sm bg-slate-900 rounded-2xl p-8 border border-slate-700 text-center shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
                   <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
-                  <h3 className="text-xl font-bold text-white mb-2">SPELL REPAIR</h3>
+                  <h3 className="text-xl font-bold text-white mb-2">拼写修复</h3>
                   <p className="text-cyan-400 mb-8 font-bold">{activeRepairVocab.chinese}</p>
                   
                   <input 
@@ -1690,11 +1947,11 @@ const App: React.FC = () => {
                     autoFocus
                     value={userTypedAnswer}
                     onChange={e => setUserTypedAnswer(e.target.value)}
-                    placeholder="TYPE HERE"
+                    placeholder="在此输入"
                   />
                   
                   <button onClick={handleVocabRepairSubmit} className="w-full py-4 bg-cyan-600 rounded-xl text-white font-bold hover:bg-cyan-500 shadow-lg shadow-cyan-900/20 active:scale-95 transition-all">
-                      VERIFY
+                      验证
                   </button>
               </div>
           </div>
