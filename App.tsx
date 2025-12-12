@@ -1270,115 +1270,189 @@ const App: React.FC = () => {
       const currentQ = quizQuestions[currentQuestionIndex];
       if (!currentQ) return <div className="p-10 text-center">Loading...</div>;
 
+      // Progress Bar
+      const progress = ((currentQuestionIndex) / quizQuestions.length) * 100;
+
       return (
-          <div className="h-full flex flex-col bg-slate-900 relative">
-              {/* Top Bar */}
-              <div className="p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-md z-10">
-                  <button onClick={handleExitBattle} className="text-slate-400 hover:text-white"><XCircle /></button>
-                  <div className="flex-1 mx-6">
-                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-500 transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}></div>
+          <div className="h-full flex flex-col relative bg-slate-900 pb-20">
+              {/* Header */}
+              <div className="p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 z-10 relative">
+                  <button onClick={handleExitBattle} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"><X size={20}/></button>
+                  <div className="flex-1 mx-4">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                          <span>Wave {currentQuestionIndex + 1}/{quizQuestions.length}</span>
+                          <span>{Math.round(progress)}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" style={{width: `${progress}%`}}></div>
                       </div>
                   </div>
-                  <div className={`font-mono font-bold text-lg ${countdown <= 3 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>00:0{countdown}</div>
+                  <div className="font-mono font-bold text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded border border-yellow-500/20">{quizScore}</div>
               </div>
 
-              {/* Main Stage */}
-              <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-                  {answerStatus !== 'IDLE' && (
-                      <div className={`absolute inset-0 flex items-center justify-center z-20 bg-black/50 backdrop-blur-sm animate-fade-in`}>
-                          {answerStatus === 'CORRECT' ? (
-                              <div className="text-green-500 flex flex-col items-center animate-bounce">
-                                  <CheckCircle size={80} className="mb-4 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]" />
-                                  <span className="text-4xl font-black italic">PERFECT</span>
-                              </div>
-                          ) : (
-                              <div className="text-red-500 flex flex-col items-center animate-shake">
-                                  <XCircle size={80} className="mb-4 drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]" />
-                                  <span className="text-4xl font-black italic">MISS</span>
-                              </div>
-                          )}
+              {/* Content Area */}
+              <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10 relative">
+                  {/* Floating Reward Effect */}
+                  {floatingReward && (
+                      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce text-yellow-400 font-bold text-2xl drop-shadow-lg pointer-events-none whitespace-nowrap bg-black/50 px-4 py-2 rounded-full border border-yellow-500/50 backdrop-blur-md">
+                          {floatingReward.text}
                       </div>
                   )}
 
-                  <div className="w-full max-w-md">
-                      {battleMode === 'VOCAB' && 'english' in currentQ && (
-                          <>
-                            <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl mb-8 text-center min-h-[200px] flex flex-col items-center justify-center">
-                                <h2 className="text-4xl font-black text-white mb-4 tracking-wide">{(currentQ as Word).english}</h2>
-                                <div className="flex gap-2 text-slate-500 text-sm font-mono">
-                                    <span>{(currentQ as Word).phonetic}</span>
-                                    <span>•</span>
-                                    <span>{(currentQ as Word).partOfSpeech}</span>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3">
-                                {currentVocabOptions.map((opt, idx) => (
-                                    <button 
-                                        key={idx}
-                                        onClick={() => handleAnswer(opt.id === currentQ.id, currentQ.id)}
-                                        disabled={answerStatus !== 'IDLE'}
-                                        className="p-4 bg-slate-800/50 hover:bg-slate-700 border border-slate-600 hover:border-cyan-500/50 rounded-xl text-left text-slate-200 font-bold transition-all active:scale-[0.98]"
-                                    >
-                                        {opt.chinese}
-                                    </button>
-                                ))}
-                            </div>
-                          </>
-                      )}
-
-                      {battleMode === 'EXAM' && 'options' in currentQ && (
-                          <>
-                             <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-6 min-h-[160px] flex items-center">
-                                <h2 className="text-lg font-bold text-white leading-relaxed">
-                                    {(currentQ as ExamQuestion).question.split('______').map((part, i, arr) => (
-                                        <React.Fragment key={i}>
-                                            {part}
-                                            {i < arr.length - 1 && <span className="inline-block w-16 border-b-2 border-white/30 mx-1"></span>}
-                                        </React.Fragment>
-                                    ))}
-                                </h2>
-                             </div>
-                             <div className="grid grid-cols-1 gap-3">
-                                {(currentQ as ExamQuestion).options.map((opt, idx) => (
-                                    <button 
-                                        key={idx}
-                                        onClick={() => handleAnswer(idx === (currentQ as ExamQuestion).correctAnswer, currentQ.id)}
-                                        disabled={answerStatus !== 'IDLE'}
-                                        className="p-4 bg-slate-800/50 hover:bg-slate-700 border border-slate-600 hover:border-cyan-500/50 rounded-xl text-left text-slate-200 font-bold transition-all active:scale-[0.98] flex items-center gap-3"
-                                    >
-                                        <div className="w-6 h-6 rounded-full border border-slate-500 flex items-center justify-center text-xs text-slate-500 font-mono">{String.fromCharCode(65 + idx)}</div>
-                                        {opt}
-                                    </button>
-                                ))}
-                             </div>
-                          </>
-                      )}
-
-                      {battleMode === 'DICTATION' && 'english' in currentQ && (
-                          <div className="flex flex-col items-center">
-                               <div className="mb-8 p-6 bg-slate-800 rounded-full cursor-pointer hover:bg-slate-700 transition-colors shadow-lg group" onClick={() => speak((currentQ as Word).english)}>
-                                    <Volume2 size={48} className="text-cyan-400 group-hover:scale-110 transition-transform" />
-                               </div>
-                               <div className="text-slate-500 font-mono text-2xl tracking-[0.5em] mb-8 h-8">
-                                   {currentWordMask}
-                               </div>
-                               <input 
-                                    type="text" 
-                                    autoFocus
-                                    value={userTypedAnswer}
-                                    onChange={(e) => setUserTypedAnswer(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
-                                    className="w-full bg-slate-800 border-b-2 border-slate-600 focus:border-cyan-500 outline-none text-center text-3xl font-bold text-white py-4 mb-4 bg-transparent placeholder:text-slate-700"
-                                    placeholder="Type here..."
-                                    autoComplete="off"
-                                    disabled={answerStatus !== 'IDLE'}
-                               />
-                               <div className="text-slate-500 text-sm">{(currentQ as Word).chinese}</div>
+                  {battleMode === 'EXAM' && (
+                      <div className="w-full max-w-md animate-fade-in relative">
+                          {/* Question Card */}
+                          <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 p-6 rounded-3xl border border-slate-600/50 shadow-2xl mb-8 relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
+                              <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">Tactical Grammar</span>
+                              <p className="text-xl font-medium text-white leading-relaxed">{(currentQ as ExamQuestion).question}</p>
                           </div>
-                      )}
-                  </div>
+                          
+                          {/* Options */}
+                          <div className="space-y-3">
+                              {(currentQ as ExamQuestion).options.map((opt, idx) => {
+                                  let stateClass = 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                  if (answerStatus !== 'IDLE') {
+                                      if (idx === (currentQ as ExamQuestion).correctAnswer) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                      else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                      else stateClass = 'opacity-50 border-transparent';
+                                  }
+                                  return (
+                                      <button 
+                                          key={idx} 
+                                          onClick={() => handleAnswer(idx === (currentQ as ExamQuestion).correctAnswer, currentQ.id)}
+                                          disabled={answerStatus !== 'IDLE'}
+                                          className={`w-full p-5 rounded-2xl border-2 text-left font-medium text-slate-200 transition-all active:scale-[0.98] shadow-lg flex items-center ${stateClass}`}
+                                      >
+                                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mr-4 transition-colors ${answerStatus === 'IDLE' ? 'bg-slate-700 text-slate-400' : (idx === (currentQ as ExamQuestion).correctAnswer ? 'bg-green-500 text-black' : 'bg-slate-800 text-slate-600')}`}>
+                                              {String.fromCharCode(65 + idx)}
+                                          </span>
+                                          {opt}
+                                      </button>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  )}
+
+                  {battleMode === 'VOCAB' && (
+                       <div className="w-full max-w-md animate-fade-in flex flex-col items-center">
+                          <div className="relative mb-10 mt-4">
+                              <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full"></div>
+                              <div className="relative text-center">
+                                  <h2 className="text-5xl font-black text-white mb-3 tracking-tighter drop-shadow-2xl">{(currentQ as Word).english}</h2>
+                                  <div className="inline-flex items-center gap-2 bg-slate-800/80 backdrop-blur px-4 py-1.5 rounded-full border border-slate-700 text-slate-400 text-sm shadow-xl">
+                                      <span className="font-mono">{(currentQ as Word).phonetic}</span>
+                                      <Volume2 size={14} className="cursor-pointer hover:text-white" onClick={() => speak((currentQ as Word).english)}/>
+                                  </div>
+                              </div>
+                          </div>
+                          
+                          <div className="w-full space-y-3">
+                              {currentVocabOptions.map((opt) => {
+                                  let stateClass = 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                  const isCorrect = opt.id === (currentQ as Word).id;
+                                  if (answerStatus !== 'IDLE') {
+                                      if (isCorrect) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                      else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                      else stateClass = 'opacity-50 border-transparent';
+                                  }
+                                  return (
+                                      <button 
+                                          key={opt.id} 
+                                          onClick={() => handleAnswer(isCorrect, (currentQ as Word).id)}
+                                          disabled={answerStatus !== 'IDLE'}
+                                          className={`w-full p-5 rounded-2xl border-2 text-center font-bold text-slate-200 transition-all active:scale-[0.98] shadow-lg text-lg ${stateClass}`}
+                                      >
+                                          {opt.chinese}
+                                      </button>
+                                  );
+                              })}
+                          </div>
+                       </div>
+                  )}
+
+                  {battleMode === 'DICTATION' && (
+                      <div className="w-full max-w-md animate-fade-in text-center pt-6">
+                          <div className="mb-10 relative inline-block group">
+                               <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                               <button onClick={() => speak((currentQ as Word).english)} className="relative w-32 h-32 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 flex items-center justify-center shadow-2xl active:scale-95 transition-all group-hover:border-emerald-500/50">
+                                   <Headphones size={48} className="text-emerald-400" />
+                               </button>
+                               <p className="mt-4 text-slate-400 text-sm font-medium">点击图标播放读音</p>
+                          </div>
+                          
+                          <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-8 max-w-xs mx-auto">
+                              <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">Definition</span>
+                              <span className="text-lg font-bold text-white">{(currentQ as Word).chinese}</span>
+                          </div>
+
+                          <div className="relative max-w-xs mx-auto">
+                               <input 
+                                  value={userTypedAnswer}
+                                  onChange={(e) => setUserTypedAnswer(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
+                                  disabled={answerStatus !== 'IDLE'}
+                                  className="w-full bg-slate-800 border-b-2 border-slate-600 px-4 py-3 text-white text-center text-2xl tracking-[0.2em] font-mono focus:border-emerald-500 outline-none uppercase bg-transparent transition-colors placeholder:text-slate-700"
+                                  placeholder="TYPE HERE"
+                                  autoFocus
+                                  autoComplete="off"
+                               />
+                               <button 
+                                  onClick={() => handleDictationSubmit(currentQ as Word)}
+                                  disabled={answerStatus !== 'IDLE'}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-50 hover:opacity-100"
+                               >
+                                  <ArrowRight size={24} />
+                               </button>
+                          </div>
+                      </div>
+                  )}
               </div>
+
+              {/* Feedback Bottom Sheet Overlay */}
+              {answerStatus !== 'IDLE' && (
+                  <div className="absolute bottom-0 left-0 w-full z-[100] animate-slide-up">
+                      <div className={`p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 ${answerStatus === 'CORRECT' ? 'bg-emerald-900/95' : 'bg-red-900/95'} backdrop-blur-md`}>
+                          {/* Header */}
+                          <div className="flex items-start gap-4 mb-4">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${answerStatus === 'CORRECT' ? 'bg-emerald-500 text-emerald-950' : 'bg-red-500 text-red-950'}`}>
+                                  {answerStatus === 'CORRECT' ? <CheckCircle size={28} /> : <XCircle size={28} />}
+                              </div>
+                              <div className="flex-1">
+                                  <h3 className={`text-2xl font-black ${answerStatus === 'CORRECT' ? 'text-emerald-100' : 'text-red-100'}`}>
+                                      {answerStatus === 'CORRECT' ? 'Excellent!' : 'Incorrect'}
+                                  </h3>
+                                  {answerStatus === 'WRONG' && (
+                                      <div className="mt-2">
+                                          <p className="text-red-200 text-xs font-bold uppercase mb-1">Correct Answer</p>
+                                          <p className="text-white font-bold text-lg">
+                                              {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
+                                          </p>
+                                          <p className="text-red-100 text-sm mt-1 border-t border-red-500/30 pt-1">
+                                              {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).chinese : (currentQ as ExamQuestion).explanation}
+                                          </p>
+                                          <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
+                                              <Shield size={10} /> 已加入错题库 (Added to Armory)
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+
+                          {/* Next Button with Timer */}
+                          <button 
+                              onClick={handleNextQuestionClick}
+                              className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${answerStatus === 'CORRECT' ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-white text-red-900 hover:bg-red-50'}`}
+                          >
+                              下一题 Next Question
+                              <span className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center text-xs font-mono">
+                                  {countdown}
+                              </span>
+                          </button>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   };
@@ -1468,7 +1542,7 @@ const App: React.FC = () => {
                
                {/* Menu List */}
                <div className="space-y-2">
-                   <button onClick={() => setAdminLoginOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
+                   <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
                        <div className="flex items-center gap-3">
                            <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-500"><ShoppingBag size={20} /></div>
                            <span className="font-bold text-slate-200">奖励兑换商城</span>
@@ -1676,6 +1750,15 @@ const App: React.FC = () => {
                           </div>
                       ))}
                   </div>
+
+                  {/* Admin Toggle */}
+                  {!isAdminMode && (
+                      <div className="p-4">
+                          <button onClick={() => setAdminLoginOpen(true)} className="w-full py-3 border border-slate-700 border-dashed rounded-xl text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors">
+                              管理员登录 (添加/管理商品)
+                          </button>
+                      </div>
+                  )}
 
                   {/* Admin View: Add/Edit */}
                   {isAdminMode && (
