@@ -65,29 +65,20 @@ const HERO_AVATARS = [
 ];
 
 // --- Rank System Logic (Honor of Kings Style) ---
-// UPDATED: 1 Star = 5000 EXP.
 const EXP_PER_STAR = 5000;
 const GOLD_PER_LEVEL = 5000;
 
 const RANK_CONFIG = [
-    // Bronze: 3 sub-tiers * 3 stars = 9 stars. Max Exp before Silver = 9 * 5000 = 45000
     { name: Rank.BRONZE,  starsPerSub: 3, subTiers: 3, baseExp: 0, color: 'from-emerald-700 to-emerald-900', iconColor: 'text-emerald-400' },
-    // Silver: 3 sub-tiers * 3 stars = 9 stars. Starts at 45000. Max before Gold = 45000 + 45000 = 90000
     { name: Rank.SILVER,  starsPerSub: 3, subTiers: 3, baseExp: 45000, color: 'from-slate-500 to-slate-700', iconColor: 'text-blue-200' },
-    // Gold: 4 sub-tiers * 4 stars = 16 stars. Starts at 90000. Max before Plat = 90000 + (16*5000) = 170000
     { name: Rank.GOLD,    starsPerSub: 4, subTiers: 4, baseExp: 90000, color: 'from-yellow-600 to-yellow-800', iconColor: 'text-yellow-400' },
-    // Platinum: 4 sub-tiers * 4 stars = 16 stars. Starts at 170000. Max before Diamond = 170000 + 80000 = 250000
     { name: Rank.PLATINUM, starsPerSub: 4, subTiers: 4, baseExp: 170000, color: 'from-cyan-600 to-cyan-800', iconColor: 'text-cyan-300' },
-    // Diamond: 5 sub-tiers * 5 stars = 25 stars. Starts at 250000. Max before Star = 250000 + 125000 = 375000
     { name: Rank.DIAMOND, starsPerSub: 5, subTiers: 5, baseExp: 250000, color: 'from-purple-600 to-purple-900', iconColor: 'text-purple-300' },
-    // Star: 5 sub-tiers * 5 stars = 25 stars. Starts at 375000. Max before King = 375000 + 125000 = 500000
     { name: Rank.STAR,    starsPerSub: 5, subTiers: 5, baseExp: 375000, color: 'from-orange-600 to-red-800', iconColor: 'text-orange-400' },
-    // King: Starts at 500000.
     { name: Rank.KING,    starsPerSub: 9999, subTiers: 1, baseExp: 500000, color: 'from-yellow-500 via-red-500 to-purple-600', iconColor: 'text-yellow-200' }
 ];
 
 const getRankInfo = (exp: number) => {
-    // 1 Star = 5000 EXP
     const totalStars = Math.floor(exp / EXP_PER_STAR);
     const expForNextStar = EXP_PER_STAR - (exp % EXP_PER_STAR);
     const currentStarExp = exp % EXP_PER_STAR;
@@ -100,7 +91,6 @@ const getRankInfo = (exp: number) => {
             currentConfig = config;
             break;
         }
-        
         const starsInThisRank = config.starsPerSub * config.subTiers;
         if (starsRemaining < starsInThisRank) {
             currentConfig = config;
@@ -124,7 +114,6 @@ const getRankInfo = (exp: number) => {
         };
     }
 
-    // Calculate Sub-tier (e.g., Gold IV, III, II, I)
     const subTierIndex = Math.floor(starsRemaining / currentConfig.starsPerSub); 
     const romanNumerals = ["I", "II", "III", "IV", "V"].slice(0, currentConfig.subTiers).reverse();
     const currentSubTier = romanNumerals[subTierIndex] || "I";
@@ -137,7 +126,7 @@ const getRankInfo = (exp: number) => {
         displayTitle: currentConfig.name,
         subRank: currentSubTier,
         progress: progress,
-        nextExp: (totalStars + 1) * EXP_PER_STAR, // EXP needed for next star
+        nextExp: (totalStars + 1) * EXP_PER_STAR,
         needed: ((totalStars + 1) * EXP_PER_STAR) - exp,
         currentStars: starsInCurrentSub,
         maxStars: currentConfig.starsPerSub,
@@ -147,11 +136,7 @@ const getRankInfo = (exp: number) => {
 };
 
 const getLevelInfo = (totalGold: number) => {
-    // Level 1 starts at 0.
-    // Level 2 needs 5000 total gold earned.
     const level = Math.floor(totalGold / GOLD_PER_LEVEL) + 1;
-    // Discount: 1% per level above 1. Max 20%.
-    // Level 1 = 0%, Level 2 = 1% ... Level 21 = 20%.
     const discountPercent = Math.min(Math.max(level - 1, 0), 20);
     const nextLevelGold = level * GOLD_PER_LEVEL;
     const progress = ((totalGold % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
@@ -188,40 +173,41 @@ const createWordMask = (word: string) => {
     }).join(' ');
 };
 
+const speak = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = 0.8;
+    window.speechSynthesis.speak(u);
+};
+
 // --- Helper Components ---
 
 const RankEmblem: React.FC<{ rankName: string, className?: string }> = ({ rankName, className }) => {
-    // Composite component to simulate a game badge
     const isKing = rankName === Rank.KING;
     const isStar = rankName === Rank.STAR;
     const isDiamond = rankName === Rank.DIAMOND;
     const isPlat = rankName === Rank.PLATINUM;
     const isGold = rankName === Rank.GOLD;
     const isSilver = rankName === Rank.SILVER;
-    const isBronze = rankName === Rank.BRONZE;
+    // const isBronze = rankName === Rank.BRONZE;
 
     return (
         <div className={`relative flex items-center justify-center w-16 h-16 ${className}`}>
-             {/* Base Shape */}
              <div className="absolute inset-0 flex items-center justify-center opacity-80">
                  <Shield size={60} className={`fill-slate-900 ${isKing ? 'text-red-500' : isStar ? 'text-orange-500' : isDiamond ? 'text-purple-500' : isPlat ? 'text-cyan-500' : isGold ? 'text-yellow-500' : isSilver ? 'text-blue-300' : 'text-emerald-600'}`} strokeWidth={1} />
              </div>
-             
-             {/* Middle Layer */}
              <div className="absolute inset-0 flex items-center justify-center">
                  {isKing ? <Crown size={32} className="text-yellow-300 fill-yellow-500/50 mb-1 drop-shadow-lg" /> : 
                   isStar ? <Star size={32} className="text-orange-200 fill-orange-500/50" /> :
                   <Sword size={32} className={`${isDiamond ? 'text-purple-200' : isPlat ? 'text-cyan-200' : isGold ? 'text-yellow-200' : 'text-slate-300'} drop-shadow-md`} />}
              </div>
-
-             {/* Accents */}
              {(isKing || isStar || isDiamond) && (
                  <div className="absolute top-1 w-full flex justify-center">
                      <div className="w-10 h-0.5 bg-white/50 rounded-full blur-[1px]"></div>
                  </div>
              )}
-             
-             {/* Bottom Ribbon visual via icon */}
              <div className="absolute bottom-2">
                  {isKing ? <div className="text-[8px] font-bold text-yellow-500 bg-black/50 px-1 rounded-full border border-yellow-500">KING</div> : 
                   <div className={`w-1.5 h-1.5 rounded-full ${isDiamond ? 'bg-purple-400' : isGold ? 'bg-yellow-400' : 'bg-slate-500'}`}></div>}
@@ -236,26 +222,19 @@ const RankDisplay: React.FC<{ stats: UserStats, onClick?: () => void }> = ({ sta
   return (
     <div onClick={onClick} className={`bg-gradient-to-br ${config.color} rounded-xl p-0.5 shadow-lg relative overflow-hidden cursor-pointer group transform active:scale-95 transition-all`}>
       <div className="bg-slate-900/40 w-full rounded-[10px] backdrop-blur-sm p-3 flex items-center relative z-10">
-          
-          {/* Left Side: Info */}
           <div className="flex-1 z-10">
               <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-white/80 tracking-wider">SEASON RANK</span>
               </div>
-              
               <h1 className={`text-xl font-black italic tracking-wide ${config.iconColor} drop-shadow-md flex items-center gap-2`}>
                   {displayTitle} <span className="text-sm font-bold text-white not-italic">{subRank}</span>
               </h1>
-
-              {/* Stars Row */}
               <div className="flex items-center gap-0.5 mt-1">
                   {displayTitle !== Rank.KING && Array.from({length: maxStars}).map((_, i) => (
                       <Star key={i} size={12} className={`${i < currentStars ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600 fill-slate-800'}`} />
                   ))}
                   {displayTitle === Rank.KING && <div className="text-yellow-400 font-bold flex items-center gap-1 text-xs"><Star size={12} fill="currentColor"/> x {currentStars}</div>}
               </div>
-              
-              {/* Exp Progress Text - To clarify it doesn't take 10000 exp for one star */}
               <div className="mt-2 text-[10px] text-slate-400 font-mono flex items-center gap-1">
                   <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
                       <div className="h-full bg-yellow-500" style={{ width: `${(currentStarExp / EXP_PER_STAR) * 100}%` }}></div>
@@ -263,13 +242,9 @@ const RankDisplay: React.FC<{ stats: UserStats, onClick?: () => void }> = ({ sta
                   <span>{currentStarExp}/{EXP_PER_STAR} EXP</span>
               </div>
           </div>
-
-          {/* Right Side: Emblem */}
           <div className="relative z-10">
               <RankEmblem rankName={displayTitle} className="drop-shadow-xl" />
           </div>
-
-          {/* Background Glow */}
           <div className={`absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-tl ${config.color} rounded-full blur-[30px] opacity-40`}></div>
       </div>
     </div>
@@ -285,12 +260,6 @@ const WordCard: React.FC<{
   const [expanded, setExpanded] = useState(false);
   const [recording, setRecording] = useState(false);
   const [score, setScore] = useState<number | null>(null);
-
-  const playAudio = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
-  };
 
   const handleRecord = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -316,7 +285,7 @@ const WordCard: React.FC<{
             <span className={isMastered ? 'text-slate-500' : 'text-slate-300'}>{word.chinese}</span>
           </div>
         </div>
-        <button onClick={(e) => { e.stopPropagation(); playAudio(word.english); }} className="p-2 bg-slate-700/50 rounded-full text-cyan-400 hover:bg-slate-600 hover:text-cyan-300 transition-colors ml-2 flex-shrink-0">
+        <button onClick={(e) => { e.stopPropagation(); speak(word.english); }} className="p-2 bg-slate-700/50 rounded-full text-cyan-400 hover:bg-slate-600 hover:text-cyan-300 transition-colors ml-2 flex-shrink-0">
           <Volume2 size={18} />
         </button>
       </div>
@@ -345,12 +314,12 @@ const App: React.FC = () => {
   const [selectedUnit, setSelectedUnit] = useState<string>(LIBRARY_STRUCTURE[0].units[0]);
   const [masteredWords, setMasteredWords] = useState<Set<string>>(new Set());
   const [flashcardMode, setFlashcardMode] = useState(false);
-  const [userStats, setUserStats] = useState<UserStats>({
+  const [userStats, setUserStats] = useState<UserStats & { dailyQuestsClaimed: {[date: string]: string[]} }>({
     username: 'Guest',
     level: 1, 
     exp: 0, 
     gold: 100, 
-    totalGoldEarned: 100, // Initial gold counts as earned
+    totalGoldEarned: 100, 
     rankTitle: Rank.BRONZE, 
     matchesPlayed: 0, 
     correctCount: 0, 
@@ -359,14 +328,15 @@ const App: React.FC = () => {
     unlockedAchievements: [], 
     inventory: [], 
     redemptionHistory: [],
-    avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur` // Default avatar
+    avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`,
+    dailyQuestsClaimed: {} // Track claimed quests per day
   });
   const [mistakes, setMistakes] = useState<WrongAnswer[]>([]);
   const [battleHistory, setBattleHistory] = useState<BattleRecord[]>([]);
   
   // Login State
   const [loginInput, setLoginInput] = useState('');
-  const [isDataLoaded, setIsDataLoaded] = useState(false); // New flag to prevent overwrite
+  const [isDataLoaded, setIsDataLoaded] = useState(false); 
 
   // Battle State
   const [missionModalOpen, setMissionModalOpen] = useState(false);
@@ -379,9 +349,14 @@ const App: React.FC = () => {
   const [battleMode, setBattleMode] = useState<'VOCAB' | 'EXAM' | 'DICTATION'>('VOCAB');
   const [userTypedAnswer, setUserTypedAnswer] = useState('');
   const [currentWordMask, setCurrentWordMask] = useState('');
-  // New state to hold shuffled options for current question, preventing re-render shuffle loop
   const [currentVocabOptions, setCurrentVocabOptions] = useState<Word[]>([]);
+  const [countdown, setCountdown] = useState(5);
+  const timerRef = useRef<number | null>(null);
+  const nextQuestionRef = useRef<() => void>(() => {});
   
+  // Collapsed Categories State
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
   // Modals & UI
   const [repairModalOpen, setRepairModalOpen] = useState(false);
   const [activeRepairQuestion, setActiveRepairQuestion] = useState<ExamQuestion | null>(null);
@@ -392,47 +367,40 @@ const App: React.FC = () => {
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [avatarModalOpen, setAvatarModalOpen] = useState(false); // Avatar Selection Modal
-  const [levelRulesOpen, setLevelRulesOpen] = useState(false); // Level Rules Collapsible
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false); 
+  const [levelRulesOpen, setLevelRulesOpen] = useState(false); 
+  const [rewardSummary, setRewardSummary] = useState({ exp: 0, gold: 0, message: '' });
   
-  // Global Confirm Modal State (Replaces window.confirm)
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
       isOpen: false, title: '', message: '', onConfirm: () => {}
   });
   
   const [isAdminMode, setIsAdminMode] = useState(false); 
-  const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
   const [shopItems, setShopItems] = useState<ShopItem[]>(DEFAULT_SHOP_ITEMS);
   const [newShopItem, setNewShopItem] = useState({ name: '', price: 100, icon: '🎁' });
-  const [editingItemId, setEditingItemId] = useState<string | null>(null); // Track item being edited
+  const [editingItemId, setEditingItemId] = useState<string | null>(null); 
   
-  // Daily Quote State
   const [currentQuote, setCurrentQuote] = useState(DAILY_QUOTES[0]);
 
   // --- Persistence & Stats Logic ---
   
   const saveProgress = (stats: UserStats, history: BattleRecord[], mistakesList: WrongAnswer[], mastered: Set<string>, currentShopItems: ShopItem[]) => {
-      // CRITICAL FIX: Only save if we are not Guest and Data IS LOADED
       if (stats.username === 'Guest') return;
-      
       const data = {
-          stats: { ...stats, shopItems: currentShopItems }, // Persist Shop Items in User Stats
+          stats: { ...stats, shopItems: currentShopItems },
           history,
           mistakes: mistakesList,
           mastered: Array.from(mastered)
       };
       localStorage.setItem(`kg_user_${stats.username}`, JSON.stringify(data));
-      // console.log("Saved progress for", stats.username);
   };
 
   useEffect(() => {
-      // CRITICAL FIX: Add isDataLoaded check
       if (currentView !== AppView.LOGIN && isDataLoaded) {
         saveProgress(userStats, battleHistory, mistakes, masteredWords, shopItems);
       }
   }, [userStats, battleHistory, mistakes, masteredWords, currentView, isDataLoaded, shopItems]);
 
-  // Update Daily Quote
   useEffect(() => {
       const hour = new Date().getHours();
       const index = hour % DAILY_QUOTES.length;
@@ -447,17 +415,16 @@ const App: React.FC = () => {
       if (savedData) {
           try {
             const parsed = JSON.parse(savedData);
-            // Ensure backwards compatibility for totalGoldEarned and avatar
             const loadedStats = {
                 ...parsed.stats,
-                totalGoldEarned: parsed.stats.totalGoldEarned ?? parsed.stats.gold, // Fallback to current gold
-                avatar: parsed.stats.avatar ?? `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`
+                totalGoldEarned: parsed.stats.totalGoldEarned ?? parsed.stats.gold,
+                avatar: parsed.stats.avatar ?? `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`,
+                dailyQuestsClaimed: parsed.stats.dailyQuestsClaimed ?? {}
             };
             setUserStats(loadedStats);
             setBattleHistory(parsed.history);
             setMistakes(parsed.mistakes);
             setMasteredWords(new Set(parsed.mastered));
-            // Load user-specific shop items, fallback to default if new user or legacy data
             setShopItems(parsed.stats.shopItems || DEFAULT_SHOP_ITEMS);
             alert(`欢迎回来，${username}！档案读取成功。`);
           } catch (e) {
@@ -470,11 +437,10 @@ const App: React.FC = () => {
           setShopItems(DEFAULT_SHOP_ITEMS);
           alert(`新兵报到！欢迎加入知识荣耀，${username}。`);
       }
-      setIsDataLoaded(true); // CRITICAL FIX: Mark data as loaded to enable saving
+      setIsDataLoaded(true); 
       setCurrentView(AppView.LOBBY);
   };
 
-  // Check-In Function
   const handleCheckIn = () => {
       const today = new Date().toISOString().split('T')[0];
       if (userStats.lastSignInDate !== today) {
@@ -483,7 +449,7 @@ const App: React.FC = () => {
               ...prev,
               lastSignInDate: today,
               gold: prev.gold + goldReward,
-              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + goldReward, // Track lifetime gold
+              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + goldReward,
               exp: prev.exp + 20,
               loginStreak: prev.loginStreak + 1
           }));
@@ -501,11 +467,8 @@ const App: React.FC = () => {
       return userStats.lastSignInDate === today;
   };
 
-  // Level Update Effect
   useEffect(() => {
-    // 1. Rank Update
     const { title } = getRankInfo(userStats.exp);
-    // 2. Level Update (Based on Total Gold)
     const { level } = getLevelInfo(userStats.totalGoldEarned);
 
     if (title !== userStats.rankTitle || level !== userStats.level) {
@@ -537,9 +500,7 @@ const App: React.FC = () => {
         const item = quizQuestions[currentQuestionIndex];
         if (item && 'english' in item) {
              const word = item as Word;
-             const u = new SpeechSynthesisUtterance(word.english);
-             u.lang = 'en-US';
-             window.speechSynthesis.speak(u);
+             speak(word.english);
              setCurrentWordMask(createWordMask(word.english));
         }
     }
@@ -565,11 +526,9 @@ const App: React.FC = () => {
       setMissionModalOpen(true);
   };
 
-  // NEW Helper to safely generate options
   const generateVocabOptions = (targetWord: Word) => {
      if (!targetWord) return;
      const otherWords = VOCABULARY_DATA.filter(w => w.id !== targetWord.id);
-     // If not enough words, just take what we have
      const count = Math.min(otherWords.length, 3);
      const distractors = otherWords.sort(() => 0.5 - Math.random()).slice(0, count);
      const options = [targetWord, ...distractors].sort(() => 0.5 - Math.random());
@@ -583,38 +542,53 @@ const App: React.FC = () => {
     setBattleMode(mode);
 
     let questions: (Word | ExamQuestion)[] = [];
+    const book1Units = ['Welcome Unit', 'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5'];
+    const isComprehensive = unit === '全册综合测试';
 
-    if (mode === 'VOCAB') {
-        const words = getWordsByUnit(unit);
-        if (words.length === 0) { alert("该单元暂无词汇数据"); return; }
-        questions = [...words].sort(() => 0.5 - Math.random());
-        // Generate options for the FIRST question immediately to avoid null state in render
-        if (questions.length > 0) {
-            generateVocabOptions(questions[0] as Word);
-        }
-    } else if (mode === 'DICTATION') {
-        const words = getWordsByUnit(unit);
-        if (words.length === 0) { alert("该单元暂无词汇数据"); return; }
-        questions = [...words].sort(() => 0.5 - Math.random()).slice(0, 10);
-    } else {
-        const exams = getExamQuestionsByUnit(unit);
-        if (exams.length === 0) {
-             questions = [];
-             if (mode === 'EXAM') {
-                 questions = [{
-                    id: 'mock-generic',
-                    unit: 'Generic',
-                    type: 'GRAMMAR',
-                    question: 'This unit has no questions yet.',
-                    options: ['A', 'B', 'C', 'D'],
-                    correctAnswer: 0,
-                    explanation: "Placeholder.",
-                    hint: "N/A"
-                 } as ExamQuestion];
-            }
+    let pool: (Word | ExamQuestion)[] = [];
+
+    if (mode === 'EXAM') {
+        if (isComprehensive) {
+            pool = EXAM_DATA.filter(q => book1Units.includes(q.unit));
         } else {
-            questions = [...exams].sort(() => 0.5 - Math.random()).slice(0, 5);
+            pool = getExamQuestionsByUnit(unit);
         }
+        
+        if (pool.length === 0) {
+             pool = [{
+                id: 'mock-generic',
+                unit: 'Generic',
+                type: 'GRAMMAR',
+                question: 'This unit has no questions yet.',
+                options: ['A', 'B', 'C', 'D'],
+                correctAnswer: 0,
+                explanation: "Placeholder.",
+                hint: "N/A"
+             } as ExamQuestion];
+        }
+    } else {
+        if (isComprehensive) {
+            pool = VOCABULARY_DATA.filter(w => book1Units.includes(w.unit));
+        } else {
+            pool = getWordsByUnit(unit);
+        }
+        if (pool.length === 0) { alert("该单元暂无词汇数据"); return; }
+    }
+
+    let questionCount = pool.length; 
+    if (isComprehensive) {
+        if (mode === 'VOCAB') questionCount = 30;
+        if (mode === 'DICTATION') questionCount = 15;
+        if (mode === 'EXAM') questionCount = 8;
+    } else {
+        if (mode === 'DICTATION') questionCount = 10;
+        if (mode === 'EXAM') questionCount = 5;
+    }
+
+    questions = [...pool].sort(() => 0.5 - Math.random()).slice(0, questionCount);
+    
+    if (mode === 'VOCAB' && questions.length > 0) {
+        generateVocabOptions(questions[0] as Word);
     }
     
     setQuizQuestions(questions);
@@ -627,7 +601,6 @@ const App: React.FC = () => {
     setCurrentView(AppView.BATTLE);
   };
 
-  // --- Unified Confirm Modal Handler ---
   const handleExitBattle = () => {
       setConfirmModal({
           isOpen: true,
@@ -635,14 +608,27 @@ const App: React.FC = () => {
           message: '正在进行实战训练，现在退出将无法获得任何奖励。确定要撤退吗？',
           onConfirm: () => {
               setConfirmModal(prev => ({ ...prev, isOpen: false }));
+              if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                  timerRef.current = null;
+              }
               setCurrentView(AppView.BATTLE_PREP);
           }
       });
   };
 
+  const handleNextQuestionClick = () => {
+      if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+      }
+      nextQuestion();
+  };
+
   const handleAnswer = (correct: boolean, targetId: string) => {
     if (answerStatus !== 'IDLE') return; 
     
+    // Just visual score for now, real reward calculated at end
     if (correct) {
       setAnswerStatus('CORRECT');
       setQuizScore(prev => prev + 10);
@@ -655,7 +641,19 @@ const App: React.FC = () => {
       });
     }
 
-    setTimeout(nextQuestion, 1500);
+    setCountdown(5);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+        setCountdown((prev) => {
+            if (prev <= 1) {
+                if (timerRef.current) clearInterval(timerRef.current);
+                timerRef.current = null;
+                nextQuestionRef.current(); 
+                return 0;
+            }
+            return prev - 1;
+        });
+    }, 1000);
   };
 
   const handleDictationSubmit = (targetWord: Word) => {
@@ -671,57 +669,110 @@ const App: React.FC = () => {
         setAnswerStatus('IDLE');
         setUserTypedAnswer('');
         setCurrentWordMask('');
+        setCountdown(5);
         
-        // Prepare options for the NEXT question if in vocab mode
         if (battleMode === 'VOCAB') {
             generateVocabOptions(quizQuestions[nextIdx] as Word);
         }
       } else {
-        finishQuiz(quizScore); 
+        finishQuiz(); 
       }
   };
 
-  const finishQuiz = (finalScore: number) => {
+  useEffect(() => {
+      nextQuestionRef.current = nextQuestion;
+  });
+
+  const finishQuiz = () => {
     setQuizFinished(true);
-    const maxScore = quizQuestions.length * 10;
-    let rank = 'B';
-    const percentage = maxScore > 0 ? finalScore / maxScore : 0;
-    if (percentage >= 0.9) rank = 'S';
-    else if (percentage >= 0.8) rank = 'A';
-    else if (percentage < 0.6) rank = 'C';
+    if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+    }
+    
+    // Reward Logic
+    const correctCount = quizScore / 10;
+    const totalQuestions = quizQuestions.length;
+    const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
+    
+    let expGained = 0;
+    let goldGained = 0;
+    let message = '';
+
+    if (accuracy >= 0.5) {
+        expGained = Math.floor(correctCount); // 1 exp per correct
+        goldGained = Math.floor(correctCount / 10); // 1 gold per 10 correct
+        message = `Accuracy ${Math.round(accuracy * 100)}% (>=50%). Rewards Granted!`;
+    } else {
+        message = `Accuracy ${Math.round(accuracy * 100)}% (<50%). No Rewards.`;
+    }
+
+    setRewardSummary({ exp: expGained, gold: goldGained, message });
+
+    // Rank Logic for History
+    let rank = 'C';
+    if (accuracy >= 0.9) rank = 'S';
+    else if (accuracy >= 0.8) rank = 'A';
+    else if (accuracy >= 0.6) rank = 'B';
 
     const newRecord: BattleRecord = {
         id: Date.now().toString(),
         unit: selectedUnit,
         mode: battleMode,
-        score: finalScore,
-        maxScore: maxScore,
+        score: quizScore,
+        maxScore: totalQuestions * 10,
         timestamp: Date.now(),
         rank: rank
     };
     setBattleHistory(prev => [newRecord, ...prev].slice(0, 20));
 
-    const expGained = finalScore;
-    const goldGained = Math.floor(finalScore / 2);
+    // Daily Quest Check
+    const today = new Date().toISOString().split('T')[0];
+    let newDailyClaims = { ...userStats.dailyQuestsClaimed };
+    if (!newDailyClaims[today]) newDailyClaims[today] = [];
     
-    // Level Logic: 500 EXP per level
+    let questRewardsGold = 0;
+    let questRewardsExp = 0;
+    
+    // Check Matches Played Today
+    const matchesToday = [newRecord, ...battleHistory].filter(r => {
+        const rDate = new Date(r.timestamp).toISOString().split('T')[0];
+        return rDate === today;
+    }).length;
+
+    // Quest 1: Play 3 matches -> 50 Gold
+    if (matchesToday >= 3 && !newDailyClaims[today].includes('quest_match_3')) {
+        questRewardsGold += 50;
+        newDailyClaims[today].push('quest_match_3');
+        alert("Daily Quest Completed: Play 3 Matches! (+50 Gold)");
+    }
+
+    // Quest 2: 5 Win Streak (Approximated as 5 recent matches with Rank A or S)
+    const recentWins = [newRecord, ...battleHistory].slice(0, 5).filter(r => r.rank === 'S' || r.rank === 'A').length;
+    if (recentWins >= 5 && !newDailyClaims[today].includes('quest_win_5')) {
+        questRewardsExp += 100;
+        newDailyClaims[today].push('quest_win_5');
+        alert("Daily Quest Completed: 5 High Rank Streak! (+100 EXP)");
+    }
+
     setUserStats(prev => {
-        const newExp = prev.exp + expGained;
-        const currentTotalGold = prev.totalGoldEarned || prev.gold; // Handle legacy
-        const newTotalGold = currentTotalGold + goldGained;
+        const newExp = prev.exp + expGained + questRewardsExp;
+        const currentTotalGold = prev.totalGoldEarned || prev.gold;
+        const newTotalGold = currentTotalGold + goldGained + questRewardsGold;
         
-        // Level is recalculated in useEffect based on totalGoldEarned
         return {
             ...prev,
             exp: newExp,
-            gold: prev.gold + goldGained,
+            gold: prev.gold + goldGained + questRewardsGold,
             totalGoldEarned: newTotalGold,
             matchesPlayed: prev.matchesPlayed + 1,
-            correctCount: prev.correctCount + (finalScore / 10)
+            correctCount: prev.correctCount + correctCount,
+            dailyQuestsClaimed: newDailyClaims
         };
     });
   };
   
+  // ... (Repair Logic remains same) ...
   // --- Exam Repair Logic ---
   const startExamRepair = (questionId: string) => {
       const original = getExamQuestionsByUnit(selectedUnit).find(q => q.id === questionId) || EXAM_DATA.find(q => q.id === questionId);
@@ -801,7 +852,6 @@ const App: React.FC = () => {
                       redemptionHistory: [newRecord, ...prev.redemptionHistory]
                   }));
                   setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                  // Optional: Show success toast instead of alert, but alert is reliable for now
                   alert("兑换成功！已保存至兑换记录。");
               }
           });
@@ -852,7 +902,6 @@ const App: React.FC = () => {
           message: '确定要下架此商品吗？',
           onConfirm: () => {
               setShopItems(prev => prev.filter(item => item.id !== id));
-              // Check if we were editing the deleted item
               if (editingItemId === id) {
                   cancelEdit();
               }
@@ -879,10 +928,19 @@ const App: React.FC = () => {
               setCurrentView(AppView.LOGIN);
               setLoginInput('');
               setIsAdminMode(false);
-              setIsDataLoaded(false); // Reset loaded flag
-              setShopItems(DEFAULT_SHOP_ITEMS); // Reset shop to defaults for safety
+              setIsDataLoaded(false); 
+              setShopItems(DEFAULT_SHOP_ITEMS);
               setConfirmModal(prev => ({ ...prev, isOpen: false }));
           }
+      });
+  };
+
+  const toggleCategory = (catId: string) => {
+      setCollapsedCategories(prev => {
+          const next = new Set(prev);
+          if (next.has(catId)) next.delete(catId);
+          else next.add(catId);
+          return next;
       });
   };
 
@@ -890,7 +948,6 @@ const App: React.FC = () => {
 
   const renderLogin = () => (
       <div className="h-screen w-full flex flex-col items-center justify-center p-6 relative bg-slate-900 overflow-hidden">
-          {/* Background effects */}
           <div className="absolute top-[-20%] left-[-20%] w-[140%] h-[140%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-900/50 to-slate-900 pointer-events-none animate-pulse"></div>
           <div className="absolute top-10 w-64 h-64 bg-cyan-500/10 rounded-full blur-[100px]"></div>
           
@@ -964,7 +1021,6 @@ const App: React.FC = () => {
         </div>
       </div>
       
-      {/* Daily Quote Section - Separated */}
       <div className="bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-4 rounded-xl border border-indigo-500/30 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none">
               <Quote size={60} className="text-white"/>
@@ -976,7 +1032,7 @@ const App: React.FC = () => {
                   <p className="text-sm font-bold text-white">{currentQuote.ch}</p>
               </div>
               <button 
-                  onClick={() => { const u = new SpeechSynthesisUtterance(currentQuote.en); u.lang = 'en-US'; window.speechSynthesis.speak(u); }}
+                  onClick={() => speak(currentQuote.en)}
                   className="p-2 bg-indigo-400/20 rounded-full text-indigo-200 hover:text-white hover:bg-indigo-400/40 transition-colors"
               >
                   <Volume2 size={16} />
@@ -984,7 +1040,6 @@ const App: React.FC = () => {
           </div>
       </div>
 
-      {/* Daily Quest Section - Separated */}
       <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/50 shadow-md">
         <div className="flex items-center gap-2 mb-3 border-b border-slate-700 pb-2"><Star size={16} className="text-yellow-400" /><h3 className="text-sm font-bold text-slate-300">每日悬赏 (Daily Quest)</h3></div>
         <div className="space-y-3">
@@ -1039,9 +1094,25 @@ const App: React.FC = () => {
       <div className="w-full max-w-sm space-y-6 pb-20">
         {LIBRARY_STRUCTURE.map((category) => (
           <div key={category.id} className="animate-fade-in">
-             <div className="flex items-center gap-2 mb-3 text-slate-300 border-b border-slate-800 pb-1"><Layers size={14} className="text-blue-400"/><span className="font-bold text-sm">{category.name}</span></div>
-             {category.units.length === 0 ? <div className="text-center p-4 bg-slate-800/50 rounded-xl border border-dashed border-slate-700 text-slate-500 text-xs">即将开放区域...</div> : (
-               <div className="space-y-2">{category.units.map((unit, idx) => (<button key={unit} onClick={() => handleUnitClick(unit)} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-3 rounded-xl flex justify-between items-center group transition-all"><div className="flex items-center gap-3"><span className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-slate-500 font-mono text-[10px] border border-slate-700 group-hover:border-yellow-500 group-hover:text-yellow-500">{idx + 1}</span><span className="font-semibold text-sm">{unit}</span></div><ChevronRight size={16} className="text-slate-500 group-hover:text-white"/></button>))}</div>
+             <button onClick={() => toggleCategory(category.id)} className="w-full flex items-center justify-between text-slate-300 border-b border-slate-800 pb-2 mb-3 hover:text-white transition-colors">
+                 <div className="flex items-center gap-2"><Layers size={14} className="text-blue-400"/><span className="font-bold text-sm">{category.name}</span></div>
+                 {collapsedCategories.has(category.id) ? <ChevronDown size={16}/> : <ChevronUp size={16}/>}
+             </button>
+             
+             {!collapsedCategories.has(category.id) && (
+                 category.units.length === 0 ? <div className="text-center p-4 bg-slate-800/50 rounded-xl border border-dashed border-slate-700 text-slate-500 text-xs mb-4">即将开放区域...</div> : (
+                   <div className="space-y-2 mb-4">{category.units.map((unit, idx) => (
+                       <button key={unit} onClick={() => handleUnitClick(unit)} className={`w-full p-3 rounded-xl flex justify-between items-center group transition-all border ${unit === '全册综合测试' ? 'bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border-yellow-500/50 shadow-lg shadow-yellow-900/20 hover:border-yellow-400' : 'bg-slate-800 hover:bg-slate-700 border-slate-600'}`}>
+                           <div className="flex items-center gap-3">
+                               <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-[10px] border ${unit === '全册综合测试' ? 'bg-yellow-500 text-slate-900 border-yellow-400 font-bold' : 'bg-slate-900 text-slate-500 border-slate-700 group-hover:border-yellow-500 group-hover:text-yellow-500'}`}>
+                                   {unit === '全册综合测试' ? <Crown size={14}/> : idx + 1}
+                               </span>
+                               <span className={`font-semibold text-sm ${unit === '全册综合测试' ? 'text-yellow-400' : 'text-white'}`}>{unit}</span>
+                           </div>
+                           <ChevronRight size={16} className={`group-hover:text-white ${unit === '全册综合测试' ? 'text-yellow-500' : 'text-slate-500'}`}/>
+                       </button>
+                   ))}</div>
+                 )
              )}
           </div>
         ))}
@@ -1064,554 +1135,584 @@ const App: React.FC = () => {
   );
 
   const renderBattle = () => {
-    if (quizFinished) return (
-        <div className="h-full flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-            <div className="w-24 h-24 bg-gradient-to-t from-yellow-600 to-yellow-400 rounded-full flex items-center justify-center shadow-xl shadow-yellow-900/50 mb-6"><Trophy size={48} className="text-white" /></div>
-            <h2 className="text-3xl font-bold text-white mb-2">VICTORY!</h2>
-            <p className="text-slate-400 mb-8">{battleMode === 'VOCAB' ? '词汇突袭' : battleMode === 'DICTATION' ? '通信破译' : '语法特训'} 完成</p>
-            <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700"><p className="text-xs text-slate-400">总得分</p><p className="text-2xl font-bold text-yellow-400">{quizScore}</p></div>
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700"><p className="text-xs text-slate-400">正确率</p><p className="text-2xl font-bold text-cyan-400">{Math.round((quizScore / (quizQuestions.length * 10)) * 100)}%</p></div>
+    if (quizFinished) {
+        // Result Screen
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-6 animate-fade-in bg-slate-900">
+                <div className="mb-6 relative">
+                    <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full"></div>
+                    <Trophy size={80} className="text-yellow-400 relative z-10" />
+                </div>
+                <h2 className="text-3xl font-black text-white mb-2">VICTORY</h2>
+                <div className="text-6xl font-black text-yellow-400 mb-6 drop-shadow-glow">{quizScore}</div>
+                <p className="text-slate-400 mb-6 font-mono text-xs">{rewardSummary.message}</p>
+                <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
+                    <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">Gold</div>
+                        <div className="text-xl font-bold text-yellow-400">+{rewardSummary.gold}</div>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">EXP</div>
+                        <div className="text-xl font-bold text-purple-400">+{rewardSummary.exp}</div>
+                    </div>
+                </div>
+                <button onClick={() => setCurrentView(AppView.LOBBY)} className="w-full max-w-xs bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-white shadow-lg transition-all">
+                    返回大厅 (Return to Base)
+                </button>
             </div>
-            <div className="flex gap-4 w-full max-w-xs">
-                <button onClick={() => setCurrentView(AppView.LOBBY)} className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800">返回大厅</button>
-                <button onClick={() => startQuiz(battleMode)} className="flex-1 py-3 rounded-lg bg-yellow-500 text-black font-bold hover:bg-yellow-400">再战一局</button>
-            </div>
-        </div>
-      );
-    if (quizQuestions.length === 0) return <div>Loading...</div>;
+        );
+    }
 
-    const currentItem = quizQuestions[currentQuestionIndex];
-    const isVocab = battleMode === 'VOCAB';
-    const isDictation = battleMode === 'DICTATION';
-    const showHint = answerStatus === 'WRONG';
+    const currentQ = quizQuestions[currentQuestionIndex];
+    if (!currentQ) return <div>Loading...</div>;
+
+    // Progress Bar
+    const progress = ((currentQuestionIndex) / quizQuestions.length) * 100;
 
     return (
-      <div className="h-full bg-slate-900 relative">
-        {/* Floating Back Button - Fixed Position & High Z-Index to Guarantee Clickability */}
-        <button 
-            onClick={handleExitBattle} 
-            className="fixed top-4 left-4 z-[100] w-12 h-12 rounded-full bg-slate-800/90 backdrop-blur border border-slate-600 text-slate-400 flex items-center justify-center shadow-2xl active:scale-95 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
-        >
-            <ChevronLeft size={28} />
-        </button>
+        <div className="h-full flex flex-col relative bg-slate-900 pb-20">
+            {/* Header */}
+            <div className="p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 z-10 relative">
+                <button onClick={handleExitBattle} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"><X size={20}/></button>
+                <div className="flex-1 mx-4">
+                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                        <span>Wave {currentQuestionIndex + 1}/{quizQuestions.length}</span>
+                        <span>{Math.round(progress)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" style={{width: `${progress}%`}}></div>
+                    </div>
+                </div>
+                <div className="font-mono font-bold text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded border border-yellow-500/20">{quizScore}</div>
+            </div>
 
-        {/* Progress Bar Header - Positioned Below/Separate */}
-        <div className="absolute top-20 left-0 w-full px-8 z-40">
-             <div className="flex justify-between items-center text-[10px] text-slate-500 mb-2 font-mono uppercase tracking-widest">
-                 <span className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isVocab ? 'bg-blue-500' : isDictation ? 'bg-emerald-500' : 'bg-purple-500'}`}></span> MISSION PROGRESS</span>
-                 <span className="text-white font-bold">{currentQuestionIndex + 1} <span className="text-slate-600">/</span> {quizQuestions.length}</span>
-             </div>
-             <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                  <div className={`h-full rounded-full transition-all duration-500 ease-out ${isVocab ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : isDictation ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]'}`} style={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}></div>
-             </div>
-        </div>
-
-        {/* Scrollable Content Area */}
-        <div className="h-full overflow-y-auto pt-32 px-6 pb-6">
-            <div className="flex-1 flex flex-col items-center justify-center mb-6 w-full min-h-[40vh]">
-                <span className="text-slate-500 text-[10px] font-bold tracking-[0.2em] mb-6 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/50">
-                    {isVocab ? 'VOCABULARY OPS' : isDictation ? 'SIGNAL DECRYPTION' : 'TACTICAL GRAMMAR'}
-                </span>
-                
-                {isVocab && (
-                    <div className="animate-fade-in flex flex-col items-center">
-                        <h2 className="text-4xl font-black text-center text-white mb-4 tracking-tight drop-shadow-2xl">{(currentItem as Word).english}</h2>
-                        <div className="flex items-center gap-3 text-slate-400 bg-slate-800/80 px-4 py-2 rounded-full text-sm border border-slate-700 shadow-lg cursor-pointer hover:bg-slate-700 hover:text-white transition-colors" onClick={() => { const u = new SpeechSynthesisUtterance((currentItem as Word).english); window.speechSynthesis.speak(u); }}>
-                            <span className="font-mono">{(currentItem as Word).phonetic}</span>
-                            <Volume2 size={16} />
+            {/* Content Area - Enhanced Styling */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10">
+                {battleMode === 'EXAM' && (
+                    <div className="w-full max-w-md animate-fade-in relative">
+                        {/* Question Card */}
+                        <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 p-6 rounded-3xl border border-slate-600/50 shadow-2xl mb-8 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
+                            <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">Tactical Grammar</span>
+                            <p className="text-xl font-medium text-white leading-relaxed">{(currentQ as ExamQuestion).question}</p>
+                        </div>
+                        
+                        {/* Options */}
+                        <div className="space-y-3">
+                            {(currentQ as ExamQuestion).options.map((opt, idx) => {
+                                let stateClass = 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                if (answerStatus !== 'IDLE') {
+                                    if (idx === (currentQ as ExamQuestion).correctAnswer) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                    else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                    else stateClass = 'opacity-50 border-transparent';
+                                }
+                                return (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => handleAnswer(idx === (currentQ as ExamQuestion).correctAnswer, currentQ.id)}
+                                        disabled={answerStatus !== 'IDLE'}
+                                        className={`w-full p-5 rounded-2xl border-2 text-left font-medium text-slate-200 transition-all active:scale-[0.98] shadow-lg flex items-center ${stateClass}`}
+                                    >
+                                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mr-4 transition-colors ${answerStatus === 'IDLE' ? 'bg-slate-700 text-slate-400' : (idx === (currentQ as ExamQuestion).correctAnswer ? 'bg-green-500 text-black' : 'bg-slate-800 text-slate-600')}`}>
+                                            {String.fromCharCode(65 + idx)}
+                                        </span>
+                                        {opt}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
 
-                {isDictation && (
-                    <div className="w-full flex flex-col items-center justify-center space-y-8 animate-fade-in">
-                        <div className="relative">
-                            <button onClick={() => { const u = new SpeechSynthesisUtterance((currentItem as Word).english); window.speechSynthesis.speak(u); }} className="w-24 h-24 rounded-full bg-slate-800 border-4 border-emerald-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.2)] active:scale-95 transition-all hover:bg-slate-700 mb-6 mx-auto group">
-                                <Volume2 size={40} className="text-emerald-400 ml-1 group-hover:scale-110 transition-transform" />
-                            </button>
-                            <div className="text-center mb-4"><p className="text-3xl font-mono font-bold text-emerald-300 tracking-[0.2em] uppercase drop-shadow-lg">{answerStatus === 'WRONG' || answerStatus === 'CORRECT' ? (currentItem as Word).english : currentWordMask}</p><p className="text-xs text-emerald-500/60 mt-2 font-mono">DECRYPT THE SIGNAL</p></div>
+                {battleMode === 'VOCAB' && (
+                     <div className="w-full max-w-md animate-fade-in flex flex-col items-center">
+                        <div className="relative mb-10 mt-4">
+                            <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full"></div>
+                            <div className="relative text-center">
+                                <h2 className="text-5xl font-black text-white mb-3 tracking-tighter drop-shadow-2xl">{(currentQ as Word).english}</h2>
+                                <div className="inline-flex items-center gap-2 bg-slate-800/80 backdrop-blur px-4 py-1.5 rounded-full border border-slate-700 text-slate-400 text-sm shadow-xl">
+                                    <span className="font-mono">{(currentQ as Word).phonetic}</span>
+                                    <Volume2 size={14} className="cursor-pointer hover:text-white" onClick={() => speak((currentQ as Word).english)}/>
+                                </div>
+                            </div>
                         </div>
-                        <div className="bg-slate-800/50 border border-emerald-500/20 px-6 py-3 rounded-xl text-center w-full"><p className="text-emerald-100 font-bold text-lg">{(currentItem as Word).chinese}</p><p className="text-slate-500 text-xs mt-1">{(currentItem as Word).partOfSpeech}</p></div>
-                        <div className="w-full max-w-xs relative">
-                            {answerStatus === 'WRONG' ? (<div className="w-full p-4 bg-red-500/10 border border-red-500 rounded-xl text-center animate-pulse"><p className="text-xs text-red-400 mb-1">DECRYPTION FAILED</p><p className="text-xl font-mono font-bold text-white tracking-widest">{(currentItem as Word).english}</p></div>) : answerStatus === 'CORRECT' ? (<div className="w-full p-4 bg-green-500/10 border border-green-500 rounded-xl text-center"><p className="text-xs text-green-400 mb-1">SIGNAL DECRYPTED</p><p className="text-xl font-mono font-bold text-white tracking-widest">{(currentItem as Word).english}</p></div>) : (<input type="text" autoFocus value={userTypedAnswer} onChange={(e) => setUserTypedAnswer(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentItem as Word)} placeholder="Type the full word..." className="w-full bg-slate-800 border-b-2 border-emerald-500/50 text-center text-xl py-3 focus:outline-none focus:border-emerald-400 text-white font-mono tracking-widest rounded-t-lg" autoComplete="off" />)}
+                        
+                        <div className="w-full space-y-3">
+                            {currentVocabOptions.map((opt) => {
+                                let stateClass = 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                const isCorrect = opt.id === (currentQ as Word).id;
+                                if (answerStatus !== 'IDLE') {
+                                    if (isCorrect) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                    else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                    else stateClass = 'opacity-50 border-transparent';
+                                }
+                                return (
+                                    <button 
+                                        key={opt.id} 
+                                        onClick={() => handleAnswer(isCorrect, (currentQ as Word).id)}
+                                        disabled={answerStatus !== 'IDLE'}
+                                        className={`w-full p-5 rounded-2xl border-2 text-center font-bold text-slate-200 transition-all active:scale-[0.98] shadow-lg text-lg ${stateClass}`}
+                                    >
+                                        {opt.chinese}
+                                    </button>
+                                );
+                            })}
                         </div>
-                    </div>
+                     </div>
                 )}
 
-                {!isVocab && !isDictation && (
-                    <div className="w-full bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 relative shadow-lg">
-                        <p className="text-lg text-slate-100 font-medium leading-relaxed">{(currentItem as ExamQuestion).question}</p>
-                        {showHint && (<div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2 animate-fade-in"><div className="bg-yellow-500/20 p-1 rounded-full"><AlertTriangle size={14} className="text-yellow-400"/></div><div><p className="text-xs font-bold text-yellow-400 mb-0.5">Tactical Hint / 战术提示</p><p className="text-xs text-yellow-200/80">{(currentItem as ExamQuestion).hint}</p></div></div>)}
+                {battleMode === 'DICTATION' && (
+                    <div className="w-full max-w-md animate-fade-in text-center pt-6">
+                        <div className="mb-10 relative inline-block group">
+                             <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                             <button onClick={() => speak((currentQ as Word).english)} className="relative w-32 h-32 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 flex items-center justify-center shadow-2xl active:scale-95 transition-all group-hover:border-emerald-500/50">
+                                 <Headphones size={48} className="text-emerald-400" />
+                             </button>
+                             <p className="mt-4 text-slate-400 text-sm font-medium">点击图标播放读音</p>
+                        </div>
+                        
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-8 max-w-xs mx-auto">
+                            <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">Definition</span>
+                            <span className="text-lg font-bold text-white">{(currentQ as Word).chinese}</span>
+                        </div>
+
+                        <div className="relative max-w-xs mx-auto">
+                             <input 
+                                value={userTypedAnswer}
+                                onChange={(e) => setUserTypedAnswer(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
+                                disabled={answerStatus !== 'IDLE'}
+                                className="w-full bg-slate-800 border-b-2 border-slate-600 px-4 py-3 text-white text-center text-2xl tracking-[0.2em] font-mono focus:border-emerald-500 outline-none uppercase bg-transparent transition-colors placeholder:text-slate-700"
+                                placeholder="TYPE HERE"
+                                autoFocus
+                                autoComplete="off"
+                             />
+                             <button 
+                                onClick={() => handleDictationSubmit(currentQ as Word)}
+                                disabled={answerStatus !== 'IDLE'}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-50 hover:opacity-100"
+                             >
+                                <ArrowRight size={24} />
+                             </button>
+                        </div>
                     </div>
                 )}
             </div>
 
-            <div className="space-y-3 mb-4 w-full">
-                {isVocab && (
-                    currentVocabOptions.map((opt) => (
-                        <button key={opt.id} onClick={() => handleAnswer(opt.id === (currentItem as Word).id, (currentItem as Word).id)} disabled={answerStatus !== 'IDLE'} className={`w-full p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${answerStatus === 'IDLE' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : opt.id === (currentItem as Word).id ? 'bg-green-500/20 border-green-500 text-green-100' : 'bg-slate-800 border-slate-700 opacity-50'}`}>
-                            <span className="font-bold mr-2 text-sm opacity-50">{opt.partOfSpeech}</span>{opt.chinese}
-                            {answerStatus !== 'IDLE' && opt.id === (currentItem as Word).id && <CheckCircle size={20} className="float-right text-green-400" />}
+            {/* Feedback Bottom Sheet Overlay */}
+            {answerStatus !== 'IDLE' && (
+                <div className="absolute bottom-0 left-0 w-full z-[100] animate-slide-up">
+                    <div className={`p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 ${answerStatus === 'CORRECT' ? 'bg-emerald-900/95' : 'bg-red-900/95'} backdrop-blur-md`}>
+                        {/* Header */}
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${answerStatus === 'CORRECT' ? 'bg-emerald-500 text-emerald-950' : 'bg-red-500 text-red-950'}`}>
+                                {answerStatus === 'CORRECT' ? <CheckCircle size={28} /> : <XCircle size={28} />}
+                            </div>
+                            <div className="flex-1">
+                                <h3 className={`text-2xl font-black ${answerStatus === 'CORRECT' ? 'text-emerald-100' : 'text-red-100'}`}>
+                                    {answerStatus === 'CORRECT' ? 'Excellent!' : 'Incorrect'}
+                                </h3>
+                                {answerStatus === 'WRONG' && (
+                                    <div className="mt-2">
+                                        <p className="text-red-200 text-xs font-bold uppercase mb-1">Correct Answer</p>
+                                        <p className="text-white font-bold text-lg">
+                                            {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
+                                        </p>
+                                        <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
+                                            <Shield size={10} /> 已加入错题库 (Added to Armory)
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Next Button with Timer */}
+                        <button 
+                            onClick={handleNextQuestionClick}
+                            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${answerStatus === 'CORRECT' ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-white text-red-900 hover:bg-red-50'}`}
+                        >
+                            下一题 Next Question
+                            <span className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center text-xs font-mono">
+                                {countdown}
+                            </span>
                         </button>
-                    ))
-                )}
-
-                {isDictation && (answerStatus === 'IDLE' ? (<button onClick={() => handleDictationSubmit(currentItem as Word)} disabled={!userTypedAnswer} className={`w-full py-4 rounded-xl font-bold tracking-widest transition-all ${userTypedAnswer ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>DEPLOY ANSWER</button>) : (<button onClick={nextQuestion} className="w-full py-4 rounded-xl font-bold tracking-widest bg-slate-700 hover:bg-slate-600 text-white animate-pulse">CONTINUE &gt;&gt;</button>))}
-
-                {!isVocab && !isDictation && ((currentItem as ExamQuestion).options.map((optText, idx) => {
-                        const q = currentItem as ExamQuestion;
-                        const isCorrect = idx === q.correctAnswer;
-                        return (
-                            <button key={idx} onClick={() => handleAnswer(isCorrect, q.id)} disabled={answerStatus === 'CORRECT'} className={`w-full p-4 rounded-xl text-left border transition-all active:scale-[0.98] flex items-center gap-3 ${answerStatus === 'IDLE' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : answerStatus === 'CORRECT' ? (isCorrect ? 'bg-green-500/20 border-green-500 text-green-100' : 'bg-slate-800 border-slate-700 opacity-50') : (showHint ? 'bg-slate-800 border-slate-700 text-slate-200' : '')}`}>
-                                <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${answerStatus === 'WRONG' && !isCorrect ? 'border-slate-700 bg-slate-900 text-slate-500' : 'border-slate-600 bg-slate-900 text-slate-500'}`}>{String.fromCharCode(65 + idx)}</span><span className="flex-1">{optText}</span>{answerStatus === 'CORRECT' && isCorrect && <CheckCircle size={20} className="text-green-400" />}
-                            </button>
-                        );
-                }))}
-            </div>
-            <div className="h-20 flex flex-col items-center justify-center">{answerStatus === 'CORRECT' && <span className="text-green-400 font-bold tracking-widest animate-bounce">PERFECT! +10 EXP</span>}{answerStatus === 'WRONG' && <span className="text-red-400 font-bold tracking-widest animate-pulse">装备受损! 已存入军械库</span>}</div>
+                    </div>
+                </div>
+            )}
         </div>
-      </div>
     );
   };
 
   const renderArmory = () => (
     <div className="p-4 h-full overflow-y-auto pb-24">
-      <div className="flex items-center gap-2 mb-4">
-        <Shield className="text-red-400" size={24} />
-        <h2 className="text-xl font-bold text-white">军械库 (错题集)</h2>
-      </div>
+      <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+        <Shield className="text-red-400" /> 军械库 (Armory)
+      </h2>
       {mistakes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center mt-20 text-slate-500 space-y-2">
-          <CheckCircle size={40} className="opacity-50" />
-          <p>暂无错题记录，继续保持！</p>
-        </div>
+         <div className="text-center text-slate-500 mt-20">
+           <CheckCircle size={48} className="mx-auto mb-2 text-green-500/50"/>
+           <p>暂无错题，继续保持！</p>
+         </div>
       ) : (
-        <div className="space-y-3">
-          {mistakes.map((m) => {
-            let content = '';
-            let title = '';
-            if (m.type === 'VOCAB' || m.type === 'DICTATION') {
-              const w = VOCABULARY_DATA.find((w) => w.id === m.targetId);
-              title = w ? w.english : 'Unknown Word';
-              content = w ? w.chinese : '';
-            } else {
-              const q = EXAM_DATA.find((q) => q.id === m.targetId) || getExamQuestionsByUnit(m.unit).find((eq) => eq.id === m.targetId);
-              title = '语法错题';
-              content = q ? q.question : 'Unknown Question';
-            }
+         <div className="space-y-3">
+           {mistakes.map(m => {
+             const isVocab = m.type === 'VOCAB' || m.type === 'DICTATION';
+             const originalWord = VOCABULARY_DATA.find(w => w.id === m.targetId);
+             const originalQuestion = getExamQuestionsByUnit(m.unit).find(q => q.id === m.targetId) || EXAM_DATA.find(q => q.id === m.targetId);
+             
+             if (!originalWord && !originalQuestion) return null;
 
-            return (
-              <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center animate-fade-in">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded border border-red-900/50">{m.type}</span>
-                    <span className="text-[10px] text-slate-500">{new Date(m.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <h4 className="font-bold text-white text-lg">{title}</h4>
-                  <p className="text-xs text-slate-400 line-clamp-1 mt-1">{content}</p>
-                </div>
-                <button 
-                  onClick={() => (m.type === 'EXAM' ? startExamRepair(m.targetId) : startVocabRepair(m.targetId))} 
-                  className="bg-slate-700 hover:bg-slate-600 text-cyan-400 p-3 rounded-xl ml-3 shadow-lg transition-colors"
-                >
-                  <Wand2 size={20} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+             return (
+               <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                 <div className="flex-1">
+                   <div className="flex items-center gap-2 mb-1">
+                     <span className={`text-[10px] px-1.5 rounded ${isVocab ? 'bg-blue-900/50 text-blue-400' : 'bg-purple-900/50 text-purple-400'}`}>
+                       {m.type}
+                     </span>
+                     <span className="text-xs text-slate-500">{m.unit}</span>
+                   </div>
+                   <div className="font-bold text-slate-200">
+                     {isVocab ? originalWord?.english : 'Grammar Question'}
+                   </div>
+                   <div className="text-xs text-slate-400 truncate max-w-[200px]">
+                     {isVocab ? originalWord?.chinese : originalQuestion?.question}
+                   </div>
+                 </div>
+                 <button 
+                   onClick={() => isVocab ? startVocabRepair(m.targetId) : startExamRepair(m.targetId)}
+                   className="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-red-600/50"
+                 >
+                   Repair
+                 </button>
+               </div>
+             );
+           })}
+         </div>
       )}
     </div>
   );
 
   const renderProfile = () => {
-    const { discountPercent, nextLevelGold } = getLevelInfo(userStats.totalGoldEarned);
-    const goldProgress = ((userStats.totalGoldEarned % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
+      const { discountPercent, nextLevelGold } = getLevelInfo(userStats.totalGoldEarned);
+      const goldProgress = ((userStats.totalGoldEarned % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
 
-    return (
-    <div className="p-4 h-full overflow-y-auto pb-24 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-            <button onClick={() => setAvatarModalOpen(true)} className="relative group">
-                <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-600 group-hover:border-cyan-400 overflow-hidden transition-all shadow-lg">
-                    <img src={userStats.avatar} alt="User Avatar" className="w-full h-full object-cover" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 bg-slate-700 p-1 rounded-full border border-slate-500 text-slate-300">
-                    <Edit2 size={12}/>
-                </div>
-            </button>
-            <div>
-                <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs bg-gradient-to-r from-blue-600 to-cyan-500 px-2 py-0.5 rounded text-white font-bold">Lv.{userStats.level}</span>
-                    <span className="text-xs text-slate-500">UID: {Date.now().toString().slice(-6)}</span>
-                </div>
-            </div>
-        </div>
-        <button onClick={handleLogout} className="bg-slate-800 p-2 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-700 transition-colors">
-            <LogOut size={20} />
-        </button>
-      </div>
-
-      {/* Level & Discount Rules Section */}
-      <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-6">
-          <button onClick={() => setLevelRulesOpen(!levelRulesOpen)} className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg text-white font-black italic">
-                      {userStats.level}
-                  </div>
-                  <div className="text-left">
-                      <p className="text-sm font-bold text-white flex items-center gap-2">当前等级权益 <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded border border-yellow-500/30">折扣 -{discountPercent}%</span></p>
-                      <div className="w-32 h-1.5 bg-slate-900 rounded-full mt-1.5 overflow-hidden">
-                          <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${goldProgress}%` }}></div>
-                      </div>
-                  </div>
+      return (
+      <div className="p-4 h-full overflow-y-auto pb-24 space-y-6">
+          <div className="flex items-center gap-4">
+              <img src={userStats.avatar} alt="Avatar" className="w-20 h-20 rounded-full border-4 border-slate-700 bg-slate-800" />
+              <div>
+                  <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
+                  <div className="text-cyan-400 font-bold">{userStats.rankTitle}</div>
+                  <div className="text-xs text-slate-400">Level {userStats.level} · {userStats.gold} Gold</div>
               </div>
-              <div className="text-slate-400">
-                  {levelRulesOpen ? <ChevronUp size={20}/> : <Info size={20}/>}
-              </div>
-          </button>
-          
-          {levelRulesOpen && (
-              <div className="px-4 pb-4 pt-0 text-xs text-slate-400 bg-slate-800/50 border-t border-slate-700/50 animate-fade-in">
-                  <div className="mt-3 space-y-2">
-                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>每累计获得 <span className="text-yellow-400 font-mono">5000</span> 金币，等级提升 1 级。</p>
-                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>每提升 1 级，商城兑换折扣增加 <span className="text-cyan-400 font-mono">1%</span>。</p>
-                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>最高折扣上限为 <span className="text-red-400 font-mono">20%</span> (Lv.21)。</p>
-                      <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-700 text-center font-mono text-slate-500">
-                          当前累计金币: <span className="text-white">{userStats.totalGoldEarned}</span> / 下一级需: <span className="text-white">{nextLevelGold}</span>
-                      </div>
-                  </div>
-              </div>
-          )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center shadow-sm">
-          <p className="text-xs text-slate-500 mb-1">学习时长</p>
-          <p className="text-xl font-black text-white">
-            {userStats.studyMinutes} <span className="text-xs font-normal text-slate-400">min</span>
-          </p>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center shadow-sm">
-          <p className="text-xs text-slate-500 mb-1">对战局数</p>
-          <p className="text-xl font-black text-white">{userStats.matchesPlayed}</p>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center shadow-sm">
-          <p className="text-xs text-slate-500 mb-1">金币</p>
-          <p className="text-xl font-black text-yellow-400 flex justify-center gap-1">
-             {userStats.gold}
-          </p>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center shadow-sm">
-          <p className="text-xs text-slate-500 mb-1">当前段位</p>
-          <p className="text-sm font-black text-cyan-400 truncate px-1">{userStats.rankTitle}</p>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-slate-300 border border-slate-700 hover:bg-slate-750 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-700 p-2 rounded-lg"><History size={18}/></div>
-            <span className="font-bold text-sm">对战历史</span>
           </div>
-          <ChevronRight size={16} />
-        </button>
-        
-        <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-yellow-500 border border-slate-700 hover:bg-slate-750 transition-colors">
-           <div className="flex items-center gap-3">
-             <div className="bg-yellow-500/10 p-2 rounded-lg"><ShoppingBag size={18}/></div>
-             <span className="font-bold text-sm">积分商城 (兑换)</span>
-           </div>
-           <ChevronRight size={16} />
-        </button>
+          
+          <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-6">
+              <button onClick={() => setLevelRulesOpen(!levelRulesOpen)} className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg text-white font-black italic">
+                          {userStats.level}
+                      </div>
+                      <div className="text-left">
+                          <p className="text-sm font-bold text-white flex items-center gap-2">当前等级权益 <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded border border-yellow-500/30">折扣 -{discountPercent}%</span></p>
+                          <div className="w-32 h-1.5 bg-slate-900 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${goldProgress}%` }}></div>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="text-slate-400">
+                      {levelRulesOpen ? <ChevronUp size={20}/> : <Info size={20}/>}
+                  </div>
+              </button>
+              
+              {levelRulesOpen && (
+                  <div className="px-4 pb-4 pt-0 text-xs text-slate-400 bg-slate-800/50 border-t border-slate-700/50 animate-fade-in">
+                      <div className="mt-3 space-y-2">
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>每累计获得 <span className="text-yellow-400 font-mono">5000</span> 金币，等级提升 1 级。</p>
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>每提升 1 级，商城兑换折扣增加 <span className="text-cyan-400 font-mono">1%</span>。</p>
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>最高折扣上限为 <span className="text-red-400 font-mono">20%</span> (Lv.21)。</p>
+                          <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-700 text-center font-mono text-slate-500">
+                              当前累计金币: <span className="text-white">{userStats.totalGoldEarned}</span> / 下一级需: <span className="text-white">{nextLevelGold}</span>
+                          </div>
+                      </div>
+                  </div>
+              )}
+          </div>
 
-        <button onClick={handleLogout} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-red-400 border border-slate-700 hover:bg-slate-750 transition-colors mt-6">
-           <div className="flex items-center gap-3">
-             <div className="bg-red-500/10 p-2 rounded-lg"><LogOut size={18}/></div>
-             <span className="font-bold text-sm">退出登录</span>
-           </div>
-        </button>
+          <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
+                  <div className="text-2xl font-bold text-white">{userStats.matchesPlayed}</div>
+                  <div className="text-xs text-slate-500 uppercase">Matches</div>
+              </div>
+              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
+                  <div className="text-2xl font-bold text-white">{Math.floor(userStats.studyMinutes / 60)}h {userStats.studyMinutes % 60}m</div>
+                  <div className="text-xs text-slate-500 uppercase">Study Time</div>
+              </div>
+          </div>
+
+          <div className="space-y-3">
+            <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-slate-300 border border-slate-700 hover:bg-slate-750 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-700 p-2 rounded-lg"><History size={18}/></div>
+                <span className="font-bold text-sm">对战历史</span>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+            
+            <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-yellow-500 border border-slate-700 hover:bg-slate-750 transition-colors">
+               <div className="flex items-center gap-3">
+                 <div className="bg-yellow-500/10 p-2 rounded-lg"><ShoppingBag size={18}/></div>
+                 <span className="font-bold text-sm">积分商城 (兑换)</span>
+               </div>
+               <ChevronRight size={16} />
+            </button>
+
+            <button onClick={handleLogout} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-red-400 border border-slate-700 hover:bg-slate-750 transition-colors mt-6">
+               <div className="flex items-center gap-3">
+                 <div className="bg-red-500/10 p-2 rounded-lg"><LogOut size={18}/></div>
+                 <span className="font-bold text-sm">退出登录</span>
+               </div>
+            </button>
+          </div>
+          
+          <div className="text-center text-[10px] text-slate-600 font-mono mt-4">
+              ID: {userStats.username} · v1.2.0
+          </div>
       </div>
-    </div>
-    );
+      );
   };
 
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
-      {currentView === AppView.LOGIN && renderLogin()}
-      {currentView === AppView.LOBBY && renderLobby()}
-      {currentView === AppView.DATABASE && renderDatabase()}
-      {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
-      {currentView === AppView.BATTLE && renderBattle()}
-      {currentView === AppView.ARMORY && renderArmory()}
-      {currentView === AppView.PROFILE && renderProfile()}
+        {currentView === AppView.LOGIN && renderLogin()}
+        {currentView === AppView.LOBBY && renderLobby()}
+        {currentView === AppView.DATABASE && renderDatabase()}
+        {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
+        {currentView === AppView.BATTLE && renderBattle()}
+        {currentView === AppView.ARMORY && renderArmory()}
+        {currentView === AppView.PROFILE && renderProfile()}
 
-      {/* Global Confirmation Modal (Replaces window.confirm) */}
-      {confirmModal.isOpen && (
-         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in" onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))}>
-            <div className="bg-slate-800 w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-               <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-yellow-500"/> {confirmModal.title}</h3>
-               <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                  {confirmModal.message}
-               </p>
-               <div className="flex gap-3">
-                  <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-sm hover:bg-slate-600 transition-all">
-                     取消
-                  </button>
-                  <button onClick={confirmModal.onConfirm} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-sm shadow-lg shadow-blue-900/30 transition-all">
-                     确认
-                  </button>
-               </div>
+        {/* Global Modals */}
+        {confirmModal.isOpen && (
+            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-slate-800 border border-slate-600 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+                    <h3 className="text-xl font-bold text-white mb-2">{confirmModal.title}</h3>
+                    <p className="text-slate-300 mb-6">{confirmModal.message}</p>
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">取消</button>
+                        <button onClick={confirmModal.onConfirm} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg">确定</button>
+                    </div>
+                </div>
             </div>
-         </div>
-      )}
+        )}
 
-      {/* Rank Detail Modal */}
-      {rankModalOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in" onClick={() => setRankModalOpen(false)}>
-           <div className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
-             <RankDisplay stats={userStats} />
-             <div className="mt-6 bg-slate-800/90 border border-slate-700 p-5 rounded-2xl">
-                <h4 className="text-white font-bold mb-3 flex items-center gap-2"><Trophy size={16} className="text-yellow-500"/> 排位规则</h4>
-                <p className="text-xs text-slate-400 leading-relaxed space-y-2">
-                   • 每次对战胜利获得经验值 (EXP)。<br/>
-                   • {EXP_PER_STAR} EXP = 1 颗星。<br/>
-                   • 积累星星提升段位，从倔强青铜到最强王者。<br/>
-                   • 连胜可获得额外 EXP 加成。
-                </p>
-             </div>
-           </div>
-        </div>
-      )}
+        {rankModalOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in" onClick={() => setRankModalOpen(false)}>
+                <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="text-center mb-6">
+                         <RankEmblem rankName={userStats.rankTitle.split(' ')[0]} className="w-24 h-24 mx-auto mb-4" />
+                         <h2 className="text-2xl font-black text-white">{userStats.rankTitle}</h2>
+                         <p className="text-slate-400 text-sm">Season 1</p>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                             <div className="flex justify-between text-sm text-slate-400 mb-2"><span>Current Exp</span><span>{userStats.exp}</span></div>
+                             <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                                 <div className="h-full bg-yellow-500" style={{width: `${getRankInfo(userStats.exp).progress}%`}}></div>
+                             </div>
+                             <div className="mt-2 text-xs text-slate-500 text-right">Next Star: {getRankInfo(userStats.exp).needed} EXP needed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
-      {/* Avatar Selection Modal */}
-      {avatarModalOpen && (
-          <div className="absolute inset-0 z-[100] bg-slate-900/95 backdrop-blur-md p-6 flex flex-col animate-fade-in">
-              <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2"><User size={24} className="text-cyan-400"/> 更换英雄头像</h3>
-                  <button onClick={() => setAvatarModalOpen(false)} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white"><X size={20}/></button>
-              </div>
-              <div className="flex-1 overflow-y-auto grid grid-cols-3 gap-4 pb-20">
-                  {HERO_AVATARS.map((hero) => (
-                      <button 
-                        key={hero.name} 
-                        onClick={() => handleAvatarSelect(hero.name)}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${userStats.avatar.includes(hero.name) ? 'bg-cyan-500/20 border-cyan-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
-                      >
-                          <img 
-                            src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} 
-                            alt={hero.name} 
-                            className="w-16 h-16 rounded-full bg-slate-900 shadow-md"
-                          />
-                          <span className={`text-xs font-bold ${userStats.avatar.includes(hero.name) ? 'text-cyan-400' : 'text-slate-400'}`}>{hero.label}</span>
-                      </button>
-                  ))}
-              </div>
+        {avatarModalOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white">Select Avatar</h3>
+                        <button onClick={() => setAvatarModalOpen(false)}><X size={20} className="text-slate-400"/></button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
+                        {HERO_AVATARS.map(hero => (
+                            <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-1 group">
+                                <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} alt={hero.label} className="w-16 h-16 rounded-full bg-slate-700 border-2 border-transparent group-hover:border-cyan-400 transition-all"/>
+                                <span className="text-[10px] text-slate-400 group-hover:text-white">{hero.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {historyModalOpen && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
+               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-md h-[70vh] flex flex-col relative">
+                  <button onClick={() => setHistoryModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20}/></button>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><History /> 历史战绩</h3>
+                  <div className="flex-1 overflow-y-auto space-y-3">
+                      {battleHistory.length === 0 ? <div className="text-center text-slate-500 mt-10">暂无战斗记录</div> : battleHistory.map((record) => (
+                          <div key={record.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                              <div>
+                                  <div className="font-bold text-slate-200 text-sm">{record.unit}</div>
+                                  <div className="text-xs text-slate-500 mt-1 flex gap-2">
+                                      <span>{new Date(record.timestamp).toLocaleDateString()}</span>
+                                      <span className="text-slate-400">{record.mode}</span>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <div className={`text-xl font-black ${record.rank === 'S' ? 'text-yellow-400' : record.rank === 'A' ? 'text-purple-400' : 'text-slate-400'}`}>{record.rank}</div>
+                                  <div className="text-xs text-slate-500">{record.score} pts</div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+               </div>
           </div>
       )}
 
-      {/* History Modal */}
-      {historyModalOpen && (
-        <div className="absolute inset-0 z-50 bg-slate-900 overflow-y-auto animate-slide-up">
-           <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center gap-3 z-10">
-              <button onClick={() => setHistoryModalOpen(false)} className="p-2 rounded-full hover:bg-slate-800 text-white"><ChevronLeft size={24}/></button>
-              <h2 className="text-lg font-bold text-white">历史战绩</h2>
-           </div>
-           <div className="p-4 space-y-3 pb-20">
-              {battleHistory.length === 0 ? <div className="text-center text-slate-500 mt-20">暂无对战记录</div> : battleHistory.map(record => (
-                  <div key={record.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                     <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-white font-bold text-sm">{record.unit}</span>
-                            <span className="text-[10px] bg-slate-700 px-1.5 rounded text-slate-400">{record.mode}</span>
-                        </div>
-                        <div className="text-xs text-slate-500">{new Date(record.timestamp).toLocaleString()}</div>
-                     </div>
-                     <div className="flex flex-col items-end">
-                        <span className={`text-xl font-black italic ${record.rank === 'S' ? 'text-yellow-400' : record.rank === 'A' ? 'text-cyan-400' : 'text-slate-400'}`}>{record.rank}</span>
-                        <span className="text-xs text-slate-400">{record.score} pts</span>
-                     </div>
-                  </div>
-              ))}
-           </div>
-        </div>
-      )}
-
-      {/* Admin Auth Modal */}
-      {adminLoginOpen && (
-        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
-           <div className="bg-slate-800 w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl">
-              <h3 className="text-lg font-bold text-white mb-4 text-center">管理员验证</h3>
-              <input type="password" value={adminPasswordInput} onChange={e => setAdminPasswordInput(e.target.value)} placeholder="请输入管理员密码" className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"/>
-              <div className="flex gap-3">
-                 <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 text-slate-300 font-bold text-sm">取消</button>
-                 <button onClick={handleAdminLoginSubmit} className="flex-1 py-2.5 rounded-xl bg-cyan-600 text-white font-bold text-sm shadow-lg shadow-cyan-900/30">验证</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Shop Admin & User View Modal */}
+      {/* Shop / Admin Modal */}
       {shopAdminOpen && (
-         <div className="absolute inset-0 z-50 bg-slate-900 overflow-y-auto animate-slide-up">
-            <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between z-10">
-               <div className="flex items-center gap-3">
-                  <button onClick={() => setShopAdminOpen(false)} className="p-2 rounded-full hover:bg-slate-800 text-white"><ChevronLeft size={24}/></button>
-                  <h2 className="text-lg font-bold text-white">积分商城</h2>
+          <div className="absolute inset-0 z-50 bg-slate-900 flex flex-col animate-fade-in">
+               <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-md z-10">
+                   <h2 className="text-lg font-bold text-white flex items-center gap-2"><ShoppingBag className="text-yellow-400"/> 积分商城</h2>
+                   <button onClick={() => setShopAdminOpen(false)} className="bg-slate-700 p-2 rounded-lg text-slate-300"><X size={20}/></button>
                </div>
-               <div className="flex items-center gap-3">
-                   <div className="bg-slate-800 px-3 py-1 rounded-full border border-slate-700 text-yellow-400 font-bold text-sm">
-                      🪙 {userStats.gold}
+               
+               <div className="flex-1 overflow-y-auto p-4 pb-24">
+                   <div className="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 p-4 rounded-xl border border-yellow-500/30 mb-6 flex justify-between items-center">
+                       <div>
+                           <div className="text-xs text-yellow-200 uppercase tracking-widest">Current Balance</div>
+                           <div className="text-3xl font-black text-yellow-400">{userStats.gold} <span className="text-sm font-normal text-yellow-200">Gold</span></div>
+                       </div>
+                       {!isAdminMode && <button onClick={() => setAdminLoginOpen(true)} className="text-xs text-slate-500 underline">Teacher Login</button>}
                    </div>
-                   {!isAdminMode && (
-                       <button onClick={() => setAdminLoginOpen(true)} className="p-2 rounded-full text-slate-500 hover:text-white transition-colors">
-                           <Settings size={18} />
-                       </button>
+
+                   {isAdminMode && (
+                       <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6">
+                           <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Settings size={14}/> 商品管理 (Admin)</h3>
+                           <div className="space-y-3">
+                               <input value={newShopItem.name} onChange={(e) => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="Item Name" className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                               <div className="flex gap-2">
+                                   <input type="number" value={newShopItem.price} onChange={(e) => setNewShopItem({...newShopItem, price: parseInt(e.target.value) || 0})} placeholder="Price" className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                                   <div className="flex-1 overflow-x-auto flex gap-2 no-scrollbar bg-slate-900 border border-slate-600 rounded-lg p-1">
+                                       {SHOP_ICONS.map(icon => (
+                                           <button key={icon} onClick={() => setNewShopItem({...newShopItem, icon})} className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded ${newShopItem.icon === icon ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>{icon}</button>
+                                       ))}
+                                   </div>
+                               </div>
+                               <div className="flex gap-2">
+                                   <button onClick={handleSaveShopItem} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg text-sm font-bold">{editingItemId ? '保存修改' : '上架商品'}</button>
+                                   {editingItemId && <button onClick={cancelEdit} className="px-4 bg-slate-600 text-white rounded-lg text-sm">取消</button>}
+                               </div>
+                           </div>
+                       </div>
                    )}
-               </div>
-            </div>
-            
-            <div className="p-4 space-y-6 pb-20">
-               {/* Add/Edit Item Section (Admin Only) */}
-               {isAdminMode && (
-                   <div className="bg-slate-800/50 p-4 rounded-xl border border-dashed border-slate-700">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-                          {editingItemId ? 'Admin: Edit Reward' : 'Admin: Add Reward'}
-                      </h4>
-                      <div className="flex gap-2 mb-2">
-                         <input value={newShopItem.name} onChange={e => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="奖励名称" className="flex-[2] bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"/>
-                         <input type="number" value={newShopItem.price} onChange={e => setNewShopItem({...newShopItem, price: parseInt(e.target.value) || 0})} placeholder="价格" className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"/>
-                      </div>
-                      
-                      {/* Icon Selector Grid */}
-                      <div className="mb-3">
-                          <p className="text-[10px] text-slate-500 mb-1.5">Select Icon:</p>
-                          <div className="grid grid-cols-10 gap-1.5">
-                              {SHOP_ICONS.map(icon => (
-                                  <button 
-                                    key={icon} 
-                                    onClick={() => setNewShopItem({...newShopItem, icon})}
-                                    className={`aspect-square rounded border flex items-center justify-center text-sm transition-all ${newShopItem.icon === icon ? 'bg-cyan-600 border-cyan-400 scale-110 shadow-lg' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}
-                                  >
-                                      {icon}
-                                  </button>
-                              ))}
-                          </div>
-                      </div>
 
-                      <div className="flex gap-2">
-                          {editingItemId && (
-                              <button onClick={cancelEdit} className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-                                  <XSquare size={14}/> 取消
-                              </button>
-                          )}
-                          <button onClick={handleSaveShopItem} className={`flex-1 ${editingItemId ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-slate-700 hover:bg-slate-600'} text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1`}>
-                              {editingItemId ? <><Save size={14}/> 保存修改</> : <><Plus size={14}/> 上架奖励</>}
-                          </button>
-                      </div>
+                   <div className="grid grid-cols-2 gap-3">
+                       {shopItems.map(item => {
+                           const canAfford = userStats.gold >= (item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
+                           const realPrice = Math.floor(item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
+                           return (
+                               <div key={item.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center relative group">
+                                   <div className="text-4xl mb-2">{item.icon}</div>
+                                   <h4 className="font-bold text-slate-200 text-sm mb-1">{item.name}</h4>
+                                   <div className="text-yellow-400 font-mono font-bold text-lg mb-3">{realPrice} <span className="text-[10px] text-slate-500">G</span></div>
+                                   
+                                   <button 
+                                      onClick={() => buyItem(item)}
+                                      disabled={!canAfford}
+                                      className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${canAfford ? 'bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg shadow-yellow-900/40' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                                   >
+                                       兑换
+                                   </button>
+                                   
+                                   {isAdminMode && (
+                                       <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           <button onClick={() => startEditItem(item)} className="p-1 bg-blue-600 rounded text-white"><Edit2 size={12}/></button>
+                                           <button onClick={() => deleteShopItem(item.id)} className="p-1 bg-red-600 rounded text-white"><Trash2 size={12}/></button>
+                                       </div>
+                                   )}
+                               </div>
+                           )
+                       })}
                    </div>
-               )}
 
-               {/* Shop Items Grid */}
-               <div className="grid grid-cols-2 gap-3">
-                  {shopItems.map(item => {
-                     const { discountMultiplier, discountPercent } = getLevelInfo(userStats.totalGoldEarned);
-                     const discountedPrice = Math.floor(item.price * discountMultiplier);
-                     
-                     return (
-                     <div key={item.id} className={`bg-slate-800 p-4 rounded-xl border transition-all relative group overflow-hidden ${editingItemId === item.id ? 'border-cyan-500 ring-1 ring-cyan-500/50' : 'border-slate-700'}`}>
-                        {isAdminMode && (
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                               <button onClick={() => startEditItem(item)} className="bg-slate-700 p-1.5 rounded-full text-cyan-400 hover:text-white hover:bg-cyan-600"><Edit2 size={12}/></button>
-                               <button onClick={() => deleteShopItem(item.id)} className="bg-slate-700 p-1.5 rounded-full text-red-400 hover:text-white hover:bg-red-600"><Trash2 size={12}/></button>
-                            </div>
-                        )}
-                        <div className="flex flex-col items-center text-center mb-3">
-                           <div className="text-4xl mb-2 filter drop-shadow-md">{item.icon}</div>
-                           <h4 className="font-bold text-white text-sm line-clamp-1">{item.name}</h4>
-                           <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
-                        </div>
-                        <button onClick={() => buyItem(item)} disabled={isAdminMode} className={`w-full font-bold py-2 rounded-lg text-xs shadow-lg active:scale-95 transition-all flex flex-col items-center justify-center ${isAdminMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 shadow-yellow-900/20'}`}>
-                           {discountPercent > 0 ? (
-                               <>
-                                <span className="line-through text-[10px] opacity-60 text-slate-800">{item.price} G</span>
-                                <span className="flex items-center gap-1">{discountedPrice} G <span className="bg-red-500 text-white text-[8px] px-1 rounded">-{discountPercent}%</span></span>
-                               </>
-                           ) : (
-                               <span>{item.price} G 兑换</span>
-                           )}
-                        </button>
+                   <div className="mt-8">
+                       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 pb-1 border-b border-slate-700">兑换记录</h3>
+                       <div className="space-y-2">
+                           {userStats.redemptionHistory.length === 0 ? <div className="text-slate-600 text-xs italic text-center">暂无兑换记录</div> : userStats.redemptionHistory.map(record => (
+                               <div key={record.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-800/50">
+                                   <span className="text-slate-300">{record.itemName}</span>
+                                   <div className="flex items-center gap-3">
+                                       <span className="text-yellow-500 text-xs">-{record.cost} G</span>
+                                       <span className="text-slate-600 text-[10px]">{new Date(record.timestamp).toLocaleDateString()}</span>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
+               </div>
+          </div>
+      )}
+
+      {/* Admin Login Modal */}
+      {adminLoginOpen && (
+          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-sm">
+                   <h3 className="text-xl font-bold text-white mb-4">教师管理登录</h3>
+                   <input 
+                      type="password"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      placeholder="Enter Access Code"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"
+                   />
+                   <div className="flex gap-3">
+                       <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-3 bg-slate-700 text-slate-300 rounded-xl font-bold">取消</button>
+                       <button onClick={handleAdminLoginSubmit} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-bold">验证</button>
+                   </div>
+               </div>
+          </div>
+      )}
+
+        {repairModalOpen && activeRepairQuestion && (
+             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Wand2 className="text-purple-400"/> 错题重铸 (Repair)</h3>
+                     <p className="text-slate-300 mb-6 text-sm">{activeRepairQuestion.question}</p>
+                     <div className="space-y-3">
+                         {activeRepairQuestion.options.map((opt, i) => (
+                             <button key={i} onClick={() => handleRepairAnswer(i === activeRepairQuestion.correctAnswer)} className="w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-left text-slate-200 text-sm transition-colors border border-slate-600">
+                                 {String.fromCharCode(65 + i)}. {opt}
+                             </button>
+                         ))}
                      </div>
-                  )})}
-               </div>
-
-               {/* Redemption History */}
-               <div className="mt-8">
-                  <h3 className="text-sm font-bold text-slate-300 mb-3 ml-1">最近兑换记录</h3>
-                  <div className="space-y-2">
-                     {userStats.redemptionHistory.length === 0 ? <p className="text-xs text-slate-600 italic ml-1">暂无记录</p> : userStats.redemptionHistory.slice(0, 5).map(r => (
-                        <div key={r.id} className="flex justify-between items-center text-xs text-slate-400 bg-slate-800/30 p-2 rounded-lg">
-                           <span>{r.itemName}</span>
-                           <span>-{r.cost} G</span>
-                        </div>
-                     ))}
-                  </div>
-               </div>
-            </div>
-         </div>
-      )}
-
-      {/* Repair Question Modal */}
-      {repairModalOpen && activeRepairQuestion && (
-         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-slate-800 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl">
-               <div className="flex items-center gap-2 mb-4">
-                  <Wand2 size={20} className="text-cyan-400"/>
-                  <h3 className="text-lg font-bold text-white">错题变式训练</h3>
-               </div>
-               <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 mb-6">
-                  <p className="text-slate-200 text-sm leading-relaxed font-medium">{activeRepairQuestion.question}</p>
-               </div>
-               <div className="space-y-2.5">
-                  {activeRepairQuestion.options.map((opt, idx) => (
-                     <button key={idx} onClick={() => handleRepairAnswer(idx === activeRepairQuestion.correctAnswer)} className="w-full p-3.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 rounded-xl text-left text-slate-200 text-sm transition-colors flex items-center gap-3">
-                        <span className="w-5 h-5 rounded-full border border-slate-500 flex items-center justify-center text-[10px] text-slate-400">{String.fromCharCode(65 + idx)}</span>
-                        {opt}
-                     </button>
-                  ))}
-               </div>
-               <button onClick={() => setRepairModalOpen(false)} className="mt-6 w-full py-3 text-slate-500 text-sm font-medium hover:text-slate-300 transition-colors">暂时放弃</button>
-            </div>
-         </div>
-      )}
-
-      {/* Vocab Repair Modal */}
-      {vocabRepairModalOpen && activeRepairVocab && (
-         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
-             <div className="w-full max-w-xs text-center">
-                <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(6,182,212,0.3)] border border-cyan-500/30">
-                   <Keyboard size={32} className="text-cyan-400"/>
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-1">拼写特训</h3>
-                <p className="text-slate-400 text-xs mb-8">Correct the spelling mistake</p>
-                
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 mb-6">
-                   <p className="text-xl font-bold text-cyan-400 mb-2">{activeRepairVocab.chinese}</p>
-                   <p className="text-slate-500 text-xs font-mono">{activeRepairVocab.partOfSpeech}</p>
-                </div>
-
-                <input autoFocus value={userTypedAnswer} onChange={e => setUserTypedAnswer(e.target.value)} placeholder="Type word here..." className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl px-4 py-4 text-center text-white text-lg font-bold outline-none focus:border-cyan-500 transition-colors mb-4 placeholder:font-normal placeholder:text-slate-700"/>
-                
-                <button onClick={handleVocabRepairSubmit} className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-900/40 active:scale-95 transition-all">
-                   VERIFY
-                </button>
-                <button onClick={() => setVocabRepairModalOpen(false)} className="mt-4 text-slate-500 text-sm hover:text-slate-300">Close</button>
+                     <button onClick={() => setRepairModalOpen(false)} className="mt-4 w-full py-2 text-slate-500 hover:text-slate-300 text-sm">放弃修复</button>
+                 </div>
              </div>
-         </div>
-      )}
+        )}
 
+        {vocabRepairModalOpen && activeRepairVocab && (
+             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl text-center">
+                     <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2 justify-center"><Wand2 className="text-blue-400"/> 拼写特训</h3>
+                     <p className="text-slate-400 mb-6 text-sm">请输入单词 "{activeRepairVocab.chinese}" 的英文</p>
+                     <input 
+                        value={userTypedAnswer} 
+                        onChange={e => setUserTypedAnswer(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center text-xl text-white font-mono mb-4 focus:border-blue-500 outline-none"
+                        placeholder="Type here..."
+                        autoFocus
+                     />
+                     <div className="flex gap-3">
+                         <button onClick={() => setVocabRepairModalOpen(false)} className="flex-1 py-2 text-slate-500 hover:text-slate-300">取消</button>
+                         <button onClick={handleVocabRepairSubmit} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">提交</button>
+                     </div>
+                 </div>
+             </div>
+        )}
     </Layout>
   );
 };
