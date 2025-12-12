@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent, CircleDollarSign, Wrench } from 'lucide-react';
+import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
 import { VOCABULARY_DATA, EXAM_DATA, UNITS, getWordsByUnit, getExamQuestionsByUnit, LIBRARY_STRUCTURE } from './services/vocabData';
@@ -314,7 +314,7 @@ const App: React.FC = () => {
   const [selectedUnit, setSelectedUnit] = useState<string>(LIBRARY_STRUCTURE[0].units[0]);
   const [masteredWords, setMasteredWords] = useState<Set<string>>(new Set());
   const [flashcardMode, setFlashcardMode] = useState(false);
-  const [userStats, setUserStats] = useState<UserStats>({
+  const [userStats, setUserStats] = useState<UserStats & { dailyQuestsClaimed: {[date: string]: string[]} }>({
     username: 'Guest',
     level: 1, 
     exp: 0, 
@@ -329,9 +329,7 @@ const App: React.FC = () => {
     inventory: [], 
     redemptionHistory: [],
     avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`,
-    dailyQuestsClaimed: {}, // Track claimed quests per day
-    dailyRepairCount: 0, // Reset daily
-    totalRepairs: 0 // Lifetime repairs
+    dailyQuestsClaimed: {} // Track claimed quests per day
   });
   const [mistakes, setMistakes] = useState<WrongAnswer[]>([]);
   const [battleHistory, setBattleHistory] = useState<BattleRecord[]>([]);
@@ -356,7 +354,7 @@ const App: React.FC = () => {
   const timerRef = useRef<number | null>(null);
   const nextQuestionRef = useRef<() => void>(() => {});
   
-  // Expanded Categories State (Default to empty set = all collapsed)
+  // Collapsed Categories State (Default collapsed means we only store expanded ones)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // Modals & UI
@@ -425,9 +423,7 @@ const App: React.FC = () => {
                 ...parsed.stats,
                 totalGoldEarned: parsed.stats.totalGoldEarned ?? parsed.stats.gold,
                 avatar: parsed.stats.avatar ?? `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`,
-                dailyQuestsClaimed: parsed.stats.dailyQuestsClaimed ?? {},
-                dailyRepairCount: parsed.stats.dailyRepairCount || 0,
-                totalRepairs: parsed.stats.totalRepairs || 0
+                dailyQuestsClaimed: parsed.stats.dailyQuestsClaimed ?? {}
             };
             setUserStats(loadedStats);
             setBattleHistory(parsed.history);
@@ -459,13 +455,12 @@ const App: React.FC = () => {
               gold: prev.gold + goldReward,
               totalGoldEarned: (prev.totalGoldEarned || prev.gold) + goldReward,
               exp: prev.exp + 20,
-              loginStreak: prev.loginStreak + 1,
-              dailyRepairCount: 0 // Reset daily repair count on new day check-in
+              loginStreak: prev.loginStreak + 1
           }));
           setConfirmModal({
               isOpen: true,
               title: '签到成功',
-              message: '今日签到完成！获得 50 金币和 20 经验值。各项每日数据已重置。',
+              message: '今日签到完成！获得 50 金币和 20 经验值。',
               onConfirm: () => setConfirmModal(prev => ({...prev, isOpen: false}))
           });
       }
@@ -642,7 +637,7 @@ const App: React.FC = () => {
       setAnswerStatus('CORRECT');
       setQuizScore(prev => prev + 10);
       // Trigger reward effect
-      setFloatingReward({ id: Date.now(), text: '+1 经验' });
+      setFloatingReward({ id: Date.now(), text: '+1 EXP' });
       setTimeout(() => setFloatingReward(null), 1000);
     } else {
       setAnswerStatus('WRONG');
@@ -714,9 +709,9 @@ const App: React.FC = () => {
     if (accuracy >= 0.5) {
         expGained = Math.floor(correctCount); // 1 exp per correct
         goldGained = Math.floor(correctCount / 10); // 1 gold per 10 correct
-        message = `正确率 ${Math.round(accuracy * 100)}% (>=50%)。奖励已发放！`;
+        message = `Accuracy ${Math.round(accuracy * 100)}% (>=50%). Rewards Granted!`;
     } else {
-        message = `正确率 ${Math.round(accuracy * 100)}% (<50%)。本次无奖励。`;
+        message = `Accuracy ${Math.round(accuracy * 100)}% (<50%). No Rewards.`;
     }
 
     setRewardSummary({ exp: expGained, gold: goldGained, message });
@@ -772,7 +767,7 @@ const App: React.FC = () => {
               dailyQuestsClaimed: newClaims
           };
       });
-      alert(`领取成功！获得 ${amount} ${type === 'GOLD' ? '金币' : '经验'}`);
+      alert(`领取成功！获得 ${amount} ${type}`);
   };
   
   // ... (Repair Logic remains same) ...
@@ -790,25 +785,7 @@ const App: React.FC = () => {
       if (correct) {
           const mistakeId = activeRepairQuestion?.id.split('-variant')[0];
           setMistakes(prev => prev.filter(m => m.targetId !== mistakeId && m.targetId !== activeRepairQuestion?.id));
-          
-          // Reward logic for repair
-          const bonusExp = 1;
-          const currentTotalRepairs = (userStats.totalRepairs || 0) + 1;
-          const bonusGold = currentTotalRepairs % 10 === 0 ? 1 : 0;
-          const rewardText = bonusGold > 0 ? `修复成功! +${bonusExp} 经验 & +${bonusGold} 金币` : `修复成功! +${bonusExp} 经验`;
-
-          setUserStats(prev => ({ 
-              ...prev, 
-              exp: prev.exp + bonusExp,
-              gold: prev.gold + bonusGold,
-              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + bonusGold,
-              dailyRepairCount: (prev.dailyRepairCount || 0) + 1,
-              totalRepairs: currentTotalRepairs
-          })); 
-          
-          setFloatingReward({ id: Date.now(), text: rewardText });
-          setTimeout(() => setFloatingReward(null), 2000);
-
+          alert("变式训练通过！错题已清除。");
           setRepairModalOpen(false);
       } else {
           alert("训练失败，请再试一次。");
@@ -831,25 +808,7 @@ const App: React.FC = () => {
       
       if (correct) {
           setMistakes(prev => prev.filter(m => m.targetId !== activeRepairVocab.id));
-          
-          // Reward logic for repair
-          const bonusExp = 1;
-          const currentTotalRepairs = (userStats.totalRepairs || 0) + 1;
-          const bonusGold = currentTotalRepairs % 10 === 0 ? 1 : 0;
-          const rewardText = bonusGold > 0 ? `拼写正确! +${bonusExp} 经验 & +${bonusGold} 金币` : `拼写正确! +${bonusExp} 经验`;
-
-          setUserStats(prev => ({ 
-              ...prev, 
-              exp: prev.exp + bonusExp,
-              gold: prev.gold + bonusGold,
-              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + bonusGold,
-              dailyRepairCount: (prev.dailyRepairCount || 0) + 1,
-              totalRepairs: currentTotalRepairs
-          })); 
-
-          setFloatingReward({ id: Date.now(), text: rewardText });
-          setTimeout(() => setFloatingReward(null), 2000);
-
+          alert("拼写特训通过！错题已清除。");
           setVocabRepairModalOpen(false);
       } else {
           alert("拼写错误，请重试！");
@@ -1028,20 +987,14 @@ const App: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     const claimedToday = userStats.dailyQuestsClaimed[today] || [];
     
-    // 1. Practice Volume (Matches Played)
+    // Check Matches Played Today
     const matchesToday = battleHistory.filter(r => {
         const rDate = new Date(r.timestamp).toISOString().split('T')[0];
         return rDate === today;
     }).length;
 
-    // 2. Accuracy (S-Rank) - "Winning Streak" in UI, logic is getting S Rank
-    const sRanksToday = battleHistory.filter(r => {
-        const rDate = new Date(r.timestamp).toISOString().split('T')[0];
-        return rDate === today && r.rank === 'S';
-    }).length;
-
-    // 3. Mistake Correction
-    const repairsToday = userStats.dailyRepairCount || 0;
+    // Check Win Streak Today (Rank A or S)
+    const recentWins = battleHistory.slice(0, 5).filter(r => (r.rank === 'S' || r.rank === 'A') && new Date(r.timestamp).toISOString().split('T')[0] === today).length;
 
     return (
     <div className="p-4 space-y-6 animate-fade-in pb-24 h-full overflow-y-auto">
@@ -1101,760 +1054,742 @@ const App: React.FC = () => {
 
       <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/50 shadow-md">
         <div className="flex items-center gap-2 mb-3 border-b border-slate-700 pb-2"><Star size={16} className="text-yellow-400" /><h3 className="text-sm font-bold text-slate-300">每日悬赏 (Daily Quest)</h3></div>
-        <div className="space-y-4">
-          
-          {/* Quest 1: Battle Hardened (Volume) */}
-          <div className="flex justify-between items-center text-sm bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-3">
-                  <div className="bg-blue-900/50 p-1.5 rounded-md text-blue-400"><Sword size={16}/></div>
-                  <div className="flex flex-col">
-                      <span className="text-slate-200 font-bold text-xs">实战演练</span>
-                      <span className="text-[10px] text-slate-400">完成 3 场练习 ({matchesToday}/3)</span>
-                  </div>
-              </div>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-slate-300">完成 3 场对局 ({matchesToday}/3)</span></div>
               {matchesToday >= 3 ? (
                   claimedToday.includes('quest_match_3') ? 
-                  <span className="text-slate-500 text-[10px] font-bold border border-slate-600 px-2 py-1 rounded bg-slate-800">已领取</span> : 
-                  <button onClick={() => claimDailyReward('quest_match_3', 'GOLD', 50)} className="bg-yellow-600 hover:bg-yellow-500 text-white text-[10px] px-2 py-1 rounded font-bold shadow-lg animate-pulse">领取 50G</button>
-              ) : <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{width: `${Math.min(matchesToday/3 * 100, 100)}%`}}></div></div>}
+                  <span className="text-slate-500 text-xs">已领取</span> : 
+                  <button onClick={() => claimDailyReward('quest_match_3', 'GOLD', 50)} className="bg-yellow-600 hover:bg-yellow-500 text-white text-xs px-2 py-1 rounded">领取 50G</button>
+              ) : <span className="text-yellow-500 font-mono text-xs">+50 金币</span>}
           </div>
-
-          {/* Quest 2: Perfectionist (Accuracy) */}
-          <div className="flex justify-between items-center text-sm bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-3">
-                  <div className="bg-purple-900/50 p-1.5 rounded-md text-purple-400"><Target size={16}/></div>
-                  <div className="flex flex-col">
-                      <span className="text-slate-200 font-bold text-xs">追求卓越</span>
-                      <span className="text-[10px] text-slate-400">获得 1 次 S 级评价 ({sRanksToday}/1)</span>
-                  </div>
-              </div>
-              {sRanksToday >= 1 ? (
-                  claimedToday.includes('quest_s_rank') ? 
-                  <span className="text-slate-500 text-[10px] font-bold border border-slate-600 px-2 py-1 rounded bg-slate-800">已领取</span> : 
-                  <button onClick={() => claimDailyReward('quest_s_rank', 'EXP', 100)} className="bg-purple-600 hover:bg-purple-500 text-white text-[10px] px-2 py-1 rounded font-bold shadow-lg animate-pulse">领取 100XP</button>
-              ) : <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-purple-500" style={{width: `${Math.min(sRanksToday/1 * 100, 100)}%`}}></div></div>}
+          <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500"></span><span className="text-slate-300">达成 5 连胜 ({recentWins}/5)</span></div>
+              {recentWins >= 5 ? (
+                  claimedToday.includes('quest_win_5') ? 
+                  <span className="text-slate-500 text-xs">已领取</span> : 
+                  <button onClick={() => claimDailyReward('quest_win_5', 'EXP', 100)} className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-2 py-1 rounded">领取 100EXP</button>
+              ) : <span className="text-yellow-500 font-mono text-xs">+100 经验</span>}
           </div>
-
-          {/* Quest 3: Redemption (Correction) */}
-          <div className="flex justify-between items-center text-sm bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-3">
-                  <div className="bg-green-900/50 p-1.5 rounded-md text-green-400"><Wrench size={16}/></div>
-                  <div className="flex flex-col">
-                      <span className="text-slate-200 font-bold text-xs">亡羊补牢</span>
-                      <span className="text-[10px] text-slate-400">修复 5 个错题 ({repairsToday}/5)</span>
-                  </div>
-              </div>
-              {repairsToday >= 5 ? (
-                  claimedToday.includes('quest_repair_5') ? 
-                  <span className="text-slate-500 text-[10px] font-bold border border-slate-600 px-2 py-1 rounded bg-slate-800">已领取</span> : 
-                  <button onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      const claimed = userStats.dailyQuestsClaimed[today] || [];
-                      if (claimed.includes('quest_repair_5')) return;
-
-                      setUserStats(prev => {
-                          const newClaims = { ...prev.dailyQuestsClaimed };
-                          if (!newClaims[today]) newClaims[today] = [];
-                          newClaims[today].push('quest_repair_5');
-                          
-                          return {
-                              ...prev,
-                              gold: prev.gold + 3,
-                              exp: prev.exp + 3,
-                              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + 3,
-                              dailyQuestsClaimed: newClaims
-                          };
-                      });
-                      alert(`领取成功！获得 3 金币 + 3 经验值`);
-                  }} className="bg-green-600 hover:bg-green-500 text-white text-[10px] px-2 py-1 rounded font-bold shadow-lg animate-pulse">领取 3G 3XP</button>
-              ) : <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-green-500" style={{width: `${Math.min(repairsToday/5 * 100, 100)}%`}}></div></div>}
-          </div>
-
         </div>
       </div>
     </div>
     );
   };
 
-  const renderDatabase = () => (
-    <div className="flex flex-col h-full bg-slate-900">
-        <div className="p-4 bg-slate-800 border-b border-slate-700">
-             <div className="flex overflow-x-auto gap-2 mb-3 pb-2 scrollbar-hide">
-                 {LIBRARY_STRUCTURE.map(cat => (
-                     <button key={cat.id} onClick={() => handleCategoryChange(cat.id)} className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{cat.name}</button>
-                 ))}
-             </div>
-             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                 {LIBRARY_STRUCTURE.find(c => c.id === selectedCategory)?.units.map(u => (
-                     <button key={u} onClick={() => setSelectedUnit(u)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border ${selectedUnit === u ? 'bg-slate-700 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-slate-600 text-slate-500 hover:border-slate-500'}`}>{u}</button>
-                 ))}
-             </div>
+  const renderDatabase = () => {
+    const currentCategory = LIBRARY_STRUCTURE.find(c => c.id === selectedCategory);
+    const availableUnits = currentCategory ? currentCategory.units : [];
+    const safeUnit = availableUnits.includes(selectedUnit) ? selectedUnit : (availableUnits.length > 0 ? availableUnits[0] : '');
+    const words = safeUnit ? getWordsByUnit(safeUnit) : [];
+    const masteredCount = words.filter(w => masteredWords.has(w.id)).length;
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 border-b border-slate-800 flex-shrink-0">
+          <div className="px-4 py-3 flex gap-3 overflow-x-auto no-scrollbar border-b border-slate-800/50">
+            {LIBRARY_STRUCTURE.map(cat => (
+              <button key={cat.id} onClick={() => handleCategoryChange(cat.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{cat.id === 'writing_skills' && <Mic size={12}/>}{cat.id === 'exam_prep' && <Layers size={12}/>}{cat.name}</button>
+            ))}
+          </div>
+          <div className="p-4 pb-2 pt-2">
+            <div className="flex justify-between items-center mb-3">
+                <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2"><Book size={14} className="text-cyan-400"/>{currentCategory?.name}</h2>
+                <button onClick={() => setFlashcardMode(!flashcardMode)} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${flashcardMode ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>{flashcardMode ? <EyeOff size={12}/> : <Eye size={12}/>}{flashcardMode ? '暗记模式' : '显示中文'}</button>
+            </div>
+            {availableUnits.length > 0 ? (
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">{availableUnits.map(unit => (<button key={unit} onClick={() => setSelectedUnit(unit)} className={`px-4 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${safeUnit === unit ? 'bg-cyan-600 text-white font-bold' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>{unit}</button>))}</div>
+            ) : <div className="py-2 text-xs text-slate-500 italic">该分类下暂无内容，敬请期待更新...</div>}
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
-             <div className="flex justify-between items-center mb-4">
-                 <h2 className="text-white font-bold text-lg">{selectedUnit} <span className="text-slate-500 text-xs font-normal">({getWordsByUnit(selectedUnit).length} words)</span></h2>
-                 <button onClick={() => setFlashcardMode(!flashcardMode)} className={`p-2 rounded-lg border ${flashcardMode ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-700 border-slate-600 text-slate-400'}`}><Layers size={18}/></button>
-             </div>
-             {getWordsByUnit(selectedUnit).map(word => (
-                 <WordCard key={word.id} word={word} isMastered={masteredWords.has(word.id)} onToggleMaster={toggleMasterWord} flashcardMode={flashcardMode} />
-             ))}
-             {getWordsByUnit(selectedUnit).length === 0 && <div className="text-center text-slate-500 py-10">暂无数据</div>}
+        <div className="p-4 flex-1 overflow-y-auto">
+          {safeUnit && words.length > 0 && (
+            <div className="flex justify-between items-center mb-4 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                <div className="flex flex-col"><span className="text-slate-300 text-sm font-bold">{safeUnit}</span><span className="text-slate-500 text-xs">共 {words.length} 词 · 已掌握 {masteredCount}</span></div>
+                <div className="w-20 h-2 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${(masteredCount / words.length) * 100}%` }}></div></div>
+            </div>
+          )}
+          <div className="space-y-1">{words.length > 0 ? words.map(word => (<WordCard key={word.id} word={word} isMastered={masteredWords.has(word.id)} onToggleMaster={toggleMasterWord} flashcardMode={flashcardMode} />)) : (<div className="flex flex-col items-center justify-center mt-20 text-slate-600"><LayoutGrid size={40} className="mb-2 opacity-50"/><p>暂无词汇数据</p></div>)}</div>
         </div>
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderBattlePrep = () => (
-    <div className="h-full overflow-y-auto p-4 pb-24 space-y-4">
-        <h2 className="text-2xl font-black text-white italic tracking-tighter mb-6 flex items-center gap-2"><Sword className="text-yellow-500" /> BATTLE FIELD</h2>
-        {UNITS.map(unit => {
-            const progress = userStats.unlockedAchievements.includes(`complete_${unit}`) ? 100 : 0; 
-            return (
-                <div key={unit} onClick={() => handleUnitClick(unit)} className="bg-slate-800 group hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 transition-all p-5 rounded-xl cursor-pointer relative overflow-hidden">
-                    <div className="flex justify-between items-center relative z-10">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">{unit}</h3>
-                            <p className="text-xs text-slate-500 mt-1">Recommend Lv.{unit.includes('Welcome') ? 1 : 2}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center border border-slate-600 group-hover:border-cyan-400 group-hover:bg-cyan-900/20 transition-all">
-                             <Play size={18} className="text-slate-400 group-hover:text-cyan-400 fill-current" />
-                        </div>
-                    </div>
-                    <div className="absolute bottom-0 left-0 h-1 bg-cyan-500 transition-all duration-1000" style={{width: `${progress}%`}}></div>
-                </div>
-            );
-        })}
+    <div className="p-6 flex flex-col h-full items-center justify-start space-y-6 overflow-y-auto relative pb-24">
+      <div className="flex justify-between items-center w-full max-w-sm mb-4 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+          <div className="flex gap-4">
+              <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-bold">EXP</span>
+                  <span className="font-bold text-purple-400">{userStats.exp}</span>
+              </div>
+              <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-bold">GOLD</span>
+                  <span className="font-bold text-yellow-400">{userStats.gold}</span>
+              </div>
+          </div>
+          <button onClick={() => setShowRulesModal(true)} className="p-2 bg-slate-700 rounded-full text-slate-300 hover:text-white"><Info size={18} /></button>
+      </div>
+
+      <div className="text-center space-y-2 mt-2 mb-6"><Sword size={48} className="text-yellow-400 mx-auto" /><h2 className="text-2xl font-bold text-white">选择作战地图</h2><p className="text-slate-400">选择一个关卡开始挑战</p></div>
+      <div className="w-full max-w-sm space-y-6 pb-20">
+        {LIBRARY_STRUCTURE.map((category) => (
+          <div key={category.id} className="animate-fade-in">
+             <button onClick={() => toggleCategory(category.id)} className="w-full flex items-center justify-between text-slate-300 border-b border-slate-800 pb-2 mb-3 hover:text-white transition-colors">
+                 <div className="flex items-center gap-2"><Layers size={14} className="text-blue-400"/><span className="font-bold text-sm">{category.name}</span></div>
+                 {expandedCategories.has(category.id) ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+             </button>
+             
+             {expandedCategories.has(category.id) && (
+                 category.units.length === 0 ? <div className="text-center p-4 bg-slate-800/50 rounded-xl border border-dashed border-slate-700 text-slate-500 text-xs mb-4">即将开放区域...</div> : (
+                   <div className="space-y-2 mb-4">{category.units.map((unit, idx) => (
+                       <button key={unit} onClick={() => handleUnitClick(unit)} className={`w-full p-3 rounded-xl flex justify-between items-center group transition-all border ${unit === '全册综合测试' ? 'bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border-yellow-500/50 shadow-lg shadow-yellow-900/20 hover:border-yellow-400' : 'bg-slate-800 hover:bg-slate-700 border-slate-600'}`}>
+                           <div className="flex items-center gap-3">
+                               <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-[10px] border ${unit === '全册综合测试' ? 'bg-yellow-500 text-slate-900 border-yellow-400 font-bold' : 'bg-slate-900 text-slate-500 border-slate-700 group-hover:border-yellow-500 group-hover:text-yellow-500'}`}>
+                                   {unit === '全册综合测试' ? <Crown size={14}/> : idx + 1}
+                               </span>
+                               <span className={`font-semibold text-sm ${unit === '全册综合测试' ? 'text-yellow-400' : 'text-white'}`}>{unit}</span>
+                           </div>
+                           <ChevronRight size={16} className={`group-hover:text-white ${unit === '全册综合测试' ? 'text-yellow-500' : 'text-slate-500'}`}/>
+                       </button>
+                   ))}</div>
+                 )
+             )}
+          </div>
+        ))}
+      </div>
+      {missionModalOpen && (
+          <div className="absolute inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl relative">
+                  <button onClick={() => setMissionModalOpen(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white"><X size={20} /></button>
+                  <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2"><Target className="text-red-500" />行动代号: {pendingUnitStart}</h3>
+                  <p className="text-slate-400 text-xs mb-6">请选择本次作战的具体任务类型</p>
+                  <div className="space-y-3">
+                      <button onClick={() => startQuiz('VOCAB')} className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 p-4 rounded-xl flex items-center justify-between group border border-blue-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-blue-800/50 flex items-center justify-center"><Zap size={20} className="text-blue-200" /></div><div className="text-left"><div className="font-bold text-white">词汇突袭</div><div className="text-[10px] text-blue-200">Rapid Vocabulary Raid</div></div></div><ChevronRight className="text-blue-200" /></button>
+                      <button onClick={() => startQuiz('DICTATION')} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 p-4 rounded-xl flex items-center justify-between group border border-emerald-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center"><Headphones size={20} className="text-emerald-200" /></div><div className="text-left"><div className="font-bold text-white">通信破译 (听写)</div><div className="text-[10px] text-emerald-200">Signal Decryption Ops</div></div></div><ChevronRight className="text-emerald-200" /></button>
+                      <button onClick={() => startQuiz('EXAM')} className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 p-4 rounded-xl flex items-center justify-between group border border-purple-400/30"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-purple-800/50 flex items-center justify-center"><GraduationCap size={20} className="text-purple-200" /></div><div className="text-left"><div className="font-bold text-white">语法特训</div><div className="text-[10px] text-purple-200">Grammar & Exams</div></div></div><ChevronRight className="text-purple-200" /></button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 
   const renderBattle = () => {
-      if (quizFinished) {
-          return (
-             <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-indigo-900/50"></div>
-                <div className="relative z-10 flex flex-col items-center animate-fade-in-up">
-                    <div className="mb-6 p-6 bg-gradient-to-tr from-yellow-400 to-orange-500 rounded-full shadow-[0_0_50px_rgba(234,179,8,0.4)] animate-bounce">
-                        <Trophy size={64} className="text-white" />
+    if (quizFinished) {
+        // Result Screen
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-6 animate-fade-in bg-slate-900">
+                <div className="mb-6 relative">
+                    <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full"></div>
+                    <Trophy size={80} className="text-yellow-400 relative z-10" />
+                </div>
+                <h2 className="text-3xl font-black text-white mb-2">VICTORY</h2>
+                <div className="text-6xl font-black text-yellow-400 mb-6 drop-shadow-glow">{quizScore}</div>
+                <p className="text-slate-400 mb-6 font-mono text-xs">{rewardSummary.message}</p>
+                <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
+                    <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">Gold</div>
+                        <div className="text-xl font-bold text-yellow-400">+{rewardSummary.gold}</div>
                     </div>
-                    <h2 className="text-3xl font-black text-white mb-2 italic">VICTORY</h2>
-                    <p className="text-slate-400 mb-8 font-mono">BATTLE FINISHED</p>
-                    
-                    <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
-                        <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex flex-col items-center">
-                            <span className="text-xs text-slate-500 uppercase font-bold">Score</span>
-                            <span className="text-2xl font-black text-white">{quizScore}</span>
-                        </div>
-                        <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex flex-col items-center">
-                            <span className="text-xs text-slate-500 uppercase font-bold">Accuracy</span>
-                            <span className="text-2xl font-black text-white">{Math.round((quizScore / (quizQuestions.length * 10)) * 100)}%</span>
-                        </div>
+                    <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">EXP</div>
+                        <div className="text-xl font-bold text-purple-400">+{rewardSummary.exp}</div>
                     </div>
+                </div>
+                <button onClick={() => setCurrentView(AppView.LOBBY)} className="w-full max-w-xs bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-white shadow-lg transition-all">
+                    返回大厅 (Return to Base)
+                </button>
+            </div>
+        );
+    }
 
-                    {rewardSummary.message && (
-                        <div className="mb-8 p-4 bg-white/5 rounded-xl border border-white/10 text-center">
-                            <p className="text-sm text-slate-300 mb-2">{rewardSummary.message}</p>
-                            <div className="flex justify-center gap-4">
-                                {rewardSummary.exp > 0 && <span className="text-yellow-400 font-bold flex items-center gap-1">+{rewardSummary.exp} EXP</span>}
-                                {rewardSummary.gold > 0 && <span className="text-yellow-400 font-bold flex items-center gap-1">+{rewardSummary.gold} Gold</span>}
+    const currentQ = quizQuestions[currentQuestionIndex];
+    if (!currentQ) return <div>Loading...</div>;
+
+    // Progress Bar
+    const progress = ((currentQuestionIndex) / quizQuestions.length) * 100;
+
+    return (
+        <div className="h-full flex flex-col relative bg-slate-900 pb-20">
+            {/* Header */}
+            <div className="p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 z-10 relative">
+                <button onClick={handleExitBattle} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"><X size={20}/></button>
+                <div className="flex-1 mx-4">
+                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                        <span>Wave {currentQuestionIndex + 1}/{quizQuestions.length}</span>
+                        <span>{Math.round(progress)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" style={{width: `${progress}%`}}></div>
+                    </div>
+                </div>
+                <div className="font-mono font-bold text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded border border-yellow-500/20">{quizScore}</div>
+            </div>
+
+            {/* Content Area - Enhanced Styling */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10 relative">
+                {/* Floating Reward Effect */}
+                {floatingReward && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce text-yellow-400 font-bold text-2xl drop-shadow-lg pointer-events-none">
+                        {floatingReward.text}
+                    </div>
+                )}
+
+                {battleMode === 'EXAM' && (
+                    <div className="w-full max-w-md animate-fade-in relative">
+                        {/* Question Card */}
+                        <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 p-6 rounded-3xl border border-slate-600/50 shadow-2xl mb-8 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
+                            <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">Tactical Grammar</span>
+                            <p className="text-xl font-medium text-white leading-relaxed">{(currentQ as ExamQuestion).question}</p>
+                        </div>
+                        
+                        {/* Options */}
+                        <div className="space-y-3">
+                            {(currentQ as ExamQuestion).options.map((opt, idx) => {
+                                let stateClass = 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                if (answerStatus !== 'IDLE') {
+                                    if (idx === (currentQ as ExamQuestion).correctAnswer) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                    else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                    else stateClass = 'opacity-50 border-transparent';
+                                }
+                                return (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => handleAnswer(idx === (currentQ as ExamQuestion).correctAnswer, currentQ.id)}
+                                        disabled={answerStatus !== 'IDLE'}
+                                        className={`w-full p-5 rounded-2xl border-2 text-left font-medium text-slate-200 transition-all active:scale-[0.98] shadow-lg flex items-center ${stateClass}`}
+                                    >
+                                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mr-4 transition-colors ${answerStatus === 'IDLE' ? 'bg-slate-700 text-slate-400' : (idx === (currentQ as ExamQuestion).correctAnswer ? 'bg-green-500 text-black' : 'bg-slate-800 text-slate-600')}`}>
+                                            {String.fromCharCode(65 + idx)}
+                                        </span>
+                                        {opt}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {battleMode === 'VOCAB' && (
+                     <div className="w-full max-w-md animate-fade-in flex flex-col items-center">
+                        <div className="relative mb-10 mt-4">
+                            <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full"></div>
+                            <div className="relative text-center">
+                                <h2 className="text-5xl font-black text-white mb-3 tracking-tighter drop-shadow-2xl">{(currentQ as Word).english}</h2>
+                                <div className="inline-flex items-center gap-2 bg-slate-800/80 backdrop-blur px-4 py-1.5 rounded-full border border-slate-700 text-slate-400 text-sm shadow-xl">
+                                    <span className="font-mono">{(currentQ as Word).phonetic}</span>
+                                    <Volume2 size={14} className="cursor-pointer hover:text-white" onClick={() => speak((currentQ as Word).english)}/>
+                                </div>
                             </div>
                         </div>
-                    )}
+                        
+                        <div className="w-full space-y-3">
+                            {currentVocabOptions.map((opt) => {
+                                let stateClass = 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
+                                const isCorrect = opt.id === (currentQ as Word).id;
+                                if (answerStatus !== 'IDLE') {
+                                    if (isCorrect) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
+                                    else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
+                                    else stateClass = 'opacity-50 border-transparent';
+                                }
+                                return (
+                                    <button 
+                                        key={opt.id} 
+                                        onClick={() => handleAnswer(isCorrect, (currentQ as Word).id)}
+                                        disabled={answerStatus !== 'IDLE'}
+                                        className={`w-full p-5 rounded-2xl border-2 text-center font-bold text-slate-200 transition-all active:scale-[0.98] shadow-lg text-lg ${stateClass}`}
+                                    >
+                                        {opt.chinese}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                     </div>
+                )}
 
-                    <button onClick={() => setCurrentView(AppView.LOBBY)} className="px-10 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg shadow-lg active:scale-95 transition-all">
-                        RETURN TO LOBBY
-                    </button>
+                {battleMode === 'DICTATION' && (
+                    <div className="w-full max-w-md animate-fade-in text-center pt-6">
+                        <div className="mb-10 relative inline-block group">
+                             <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                             <button onClick={() => speak((currentQ as Word).english)} className="relative w-32 h-32 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 flex items-center justify-center shadow-2xl active:scale-95 transition-all group-hover:border-emerald-500/50">
+                                 <Headphones size={48} className="text-emerald-400" />
+                             </button>
+                             <p className="mt-4 text-slate-400 text-sm font-medium">点击图标播放读音</p>
+                        </div>
+                        
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-8 max-w-xs mx-auto">
+                            <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">Definition</span>
+                            <span className="text-lg font-bold text-white">{(currentQ as Word).chinese}</span>
+                        </div>
+
+                        <div className="relative max-w-xs mx-auto">
+                             <input 
+                                value={userTypedAnswer}
+                                onChange={(e) => setUserTypedAnswer(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
+                                disabled={answerStatus !== 'IDLE'}
+                                className="w-full bg-slate-800 border-b-2 border-slate-600 px-4 py-3 text-white text-center text-2xl tracking-[0.2em] font-mono focus:border-emerald-500 outline-none uppercase bg-transparent transition-colors placeholder:text-slate-700"
+                                placeholder="TYPE HERE"
+                                autoFocus
+                                autoComplete="off"
+                             />
+                             <button 
+                                onClick={() => handleDictationSubmit(currentQ as Word)}
+                                disabled={answerStatus !== 'IDLE'}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-50 hover:opacity-100"
+                             >
+                                <ArrowRight size={24} />
+                             </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Feedback Bottom Sheet Overlay */}
+            {answerStatus !== 'IDLE' && (
+                <div className="absolute bottom-0 left-0 w-full z-[100] animate-slide-up">
+                    <div className={`p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 ${answerStatus === 'CORRECT' ? 'bg-emerald-900/95' : 'bg-red-900/95'} backdrop-blur-md`}>
+                        {/* Header */}
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${answerStatus === 'CORRECT' ? 'bg-emerald-500 text-emerald-950' : 'bg-red-500 text-red-950'}`}>
+                                {answerStatus === 'CORRECT' ? <CheckCircle size={28} /> : <XCircle size={28} />}
+                            </div>
+                            <div className="flex-1">
+                                <h3 className={`text-2xl font-black ${answerStatus === 'CORRECT' ? 'text-emerald-100' : 'text-red-100'}`}>
+                                    {answerStatus === 'CORRECT' ? 'Excellent!' : 'Incorrect'}
+                                </h3>
+                                {answerStatus === 'WRONG' && (
+                                    <div className="mt-2">
+                                        <p className="text-red-200 text-xs font-bold uppercase mb-1">Correct Answer</p>
+                                        <p className="text-white font-bold text-lg">
+                                            {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
+                                        </p>
+                                        <p className="text-red-200 text-sm mt-1 font-medium opacity-80">
+                                            {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).chinese : (currentQ as ExamQuestion).explanation}
+                                        </p>
+                                        <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
+                                            <Shield size={10} /> 已加入错题库 (Added to Armory)
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Next Button with Timer */}
+                        <button 
+                            onClick={handleNextQuestionClick}
+                            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${answerStatus === 'CORRECT' ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-white text-red-900 hover:bg-red-50'}`}
+                        >
+                            下一题 Next Question
+                            <span className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center text-xs font-mono">
+                                {countdown}
+                            </span>
+                        </button>
+                    </div>
                 </div>
-             </div>
-          );
-      }
+            )}
+        </div>
+    );
+  };
 
-      const currentQ = quizQuestions[currentQuestionIndex];
-      if (!currentQ) return <div className="p-10 text-center">Loading...</div>;
+  const renderArmory = () => (
+    <div className="p-4 h-full overflow-y-auto pb-24">
+      <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+        <Shield className="text-red-400" /> 军械库 (Armory)
+      </h2>
+      {mistakes.length === 0 ? (
+         <div className="text-center text-slate-500 mt-20">
+           <CheckCircle size={48} className="mx-auto mb-2 text-green-500/50"/>
+           <p>暂无错题，继续保持！</p>
+         </div>
+      ) : (
+         <div className="space-y-3">
+           {mistakes.map(m => {
+             const isVocab = m.type === 'VOCAB' || m.type === 'DICTATION';
+             const originalWord = VOCABULARY_DATA.find(w => w.id === m.targetId);
+             const originalQuestion = getExamQuestionsByUnit(m.unit).find(q => q.id === m.targetId) || EXAM_DATA.find(q => q.id === m.targetId);
+             
+             if (!originalWord && !originalQuestion) return null;
 
-      // Progress Bar
-      const progress = ((currentQuestionIndex) / quizQuestions.length) * 100;
+             return (
+               <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                 <div className="flex-1">
+                   <div className="flex items-center gap-2 mb-1">
+                     <span className={`text-[10px] px-1.5 rounded ${isVocab ? 'bg-blue-900/50 text-blue-400' : 'bg-purple-900/50 text-purple-400'}`}>
+                       {m.type}
+                     </span>
+                     <span className="text-xs text-slate-500">{m.unit}</span>
+                   </div>
+                   <div className="font-bold text-slate-200">
+                     {isVocab ? originalWord?.english : 'Grammar Question'}
+                   </div>
+                   <div className="text-xs text-slate-400 truncate max-w-[200px]">
+                     {isVocab ? originalWord?.chinese : originalQuestion?.question}
+                   </div>
+                 </div>
+                 <button 
+                   onClick={() => isVocab ? startVocabRepair(m.targetId) : startExamRepair(m.targetId)}
+                   className="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-red-600/50"
+                 >
+                   Repair
+                 </button>
+               </div>
+             );
+           })}
+         </div>
+      )}
+    </div>
+  );
+
+  const renderProfile = () => {
+      const { discountPercent, nextLevelGold } = getLevelInfo(userStats.totalGoldEarned);
+      const goldProgress = ((userStats.totalGoldEarned % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
 
       return (
-          <div className="h-full flex flex-col relative bg-slate-900 pb-20">
-              {/* Header */}
-              <div className="p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 z-10 relative">
-                  <button onClick={handleExitBattle} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"><X size={20}/></button>
-                  <div className="flex-1 mx-4">
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                          <span>Wave {currentQuestionIndex + 1}/{quizQuestions.length}</span>
-                          <span>{Math.round(progress)}%</span>
+      <div className="p-4 h-full overflow-y-auto pb-24 space-y-6">
+          <div className="flex items-center gap-4">
+              <img src={userStats.avatar} alt="Avatar" className="w-20 h-20 rounded-full border-4 border-slate-700 bg-slate-800" />
+              <div>
+                  <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
+                  <div className="text-cyan-400 font-bold">{userStats.rankTitle}</div>
+                  <div className="text-xs text-slate-400">Level {userStats.level} · {userStats.gold} Gold</div>
+              </div>
+          </div>
+          
+          <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-6">
+              <button onClick={() => setLevelRulesOpen(!levelRulesOpen)} className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg text-white font-black italic">
+                          {userStats.level}
                       </div>
-                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" style={{width: `${progress}%`}}></div>
+                      <div className="text-left">
+                          <p className="text-sm font-bold text-white flex items-center gap-2">当前等级权益 <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded border border-yellow-500/30">折扣 -{discountPercent}%</span></p>
+                          <div className="w-32 h-1.5 bg-slate-900 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${goldProgress}%` }}></div>
+                          </div>
                       </div>
                   </div>
-                  <div className="font-mono font-bold text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded border border-yellow-500/20">{quizScore}</div>
-              </div>
-
-              {/* Content Area */}
-              <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10 relative">
-                  {/* Floating Reward Effect */}
-                  {floatingReward && (
-                      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce text-yellow-400 font-bold text-2xl drop-shadow-lg pointer-events-none whitespace-nowrap bg-black/50 px-4 py-2 rounded-full border border-yellow-500/50 backdrop-blur-md">
-                          {floatingReward.text}
-                      </div>
-                  )}
-
-                  {battleMode === 'EXAM' && (
-                      <div className="w-full max-w-md animate-fade-in relative">
-                          {/* Question Card */}
-                          <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 p-6 rounded-3xl border border-slate-600/50 shadow-2xl mb-8 relative overflow-hidden">
-                              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
-                              <span className="text-[10px] font-black tracking-widest text-purple-400 uppercase mb-4 block opacity-80">Tactical Grammar</span>
-                              <p className="text-xl font-medium text-white leading-relaxed">{(currentQ as ExamQuestion).question}</p>
+                  <div className="text-slate-400">
+                      {levelRulesOpen ? <ChevronUp size={20}/> : <Info size={20}/>}
+                  </div>
+              </button>
+              
+              {levelRulesOpen && (
+                  <div className="px-4 pb-4 pt-0 text-xs text-slate-400 bg-slate-800/50 border-t border-slate-700/50 animate-fade-in">
+                      <div className="mt-3 space-y-2">
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>每累计获得 <span className="text-yellow-400 font-mono">5000</span> 金币，等级提升 1 级。</p>
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>每提升 1 级，商城兑换折扣增加 <span className="text-cyan-400 font-mono">1%</span>。</p>
+                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>最高折扣上限为 <span className="text-red-400 font-mono">20%</span> (Lv.21)。</p>
+                          <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-700 text-center font-mono text-slate-500">
+                              当前累计金币: <span className="text-white">{userStats.totalGoldEarned}</span> / 下一级需: <span className="text-white">{nextLevelGold}</span>
                           </div>
-                          
-                          {/* Options */}
-                          <div className="space-y-3">
-                              {(currentQ as ExamQuestion).options.map((opt, idx) => {
-                                  let stateClass = 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
-                                  if (answerStatus !== 'IDLE') {
-                                      if (idx === (currentQ as ExamQuestion).correctAnswer) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
-                                      else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
-                                      else stateClass = 'opacity-50 border-transparent';
-                                  }
-                                  return (
-                                      <button 
-                                          key={idx} 
-                                          onClick={() => handleAnswer(idx === (currentQ as ExamQuestion).correctAnswer, currentQ.id)}
-                                          disabled={answerStatus !== 'IDLE'}
-                                          className={`w-full p-5 rounded-2xl border-2 text-left font-medium text-slate-200 transition-all active:scale-[0.98] shadow-lg flex items-center ${stateClass}`}
-                                      >
-                                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold mr-4 transition-colors ${answerStatus === 'IDLE' ? 'bg-slate-700 text-slate-400' : (idx === (currentQ as ExamQuestion).correctAnswer ? 'bg-green-500 text-black' : 'bg-slate-800 text-slate-600')}`}>
-                                              {String.fromCharCode(65 + idx)}
-                                          </span>
-                                          {opt}
-                                      </button>
-                                  );
-                              })}
-                          </div>
-                      </div>
-                  )}
-
-                  {battleMode === 'VOCAB' && (
-                       <div className="w-full max-w-md animate-fade-in flex flex-col items-center">
-                          <div className="relative mb-10 mt-4">
-                              <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full"></div>
-                              <div className="relative text-center">
-                                  <h2 className="text-5xl font-black text-white mb-3 tracking-tighter drop-shadow-2xl">{(currentQ as Word).english}</h2>
-                                  <div className="inline-flex items-center gap-2 bg-slate-800/80 backdrop-blur px-4 py-1.5 rounded-full border border-slate-700 text-slate-400 text-sm shadow-xl">
-                                      <span className="font-mono">{(currentQ as Word).phonetic}</span>
-                                      <Volume2 size={14} className="cursor-pointer hover:text-white" onClick={() => speak((currentQ as Word).english)}/>
-                                  </div>
-                              </div>
-                          </div>
-                          
-                          <div className="w-full space-y-3">
-                              {currentVocabOptions.map((opt) => {
-                                  let stateClass = 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 hover:border-slate-500';
-                                  const isCorrect = opt.id === (currentQ as Word).id;
-                                  if (answerStatus !== 'IDLE') {
-                                      if (isCorrect) stateClass = 'bg-green-600/20 border-green-500 text-green-100 ring-1 ring-green-500/50';
-                                      else if (answerStatus === 'WRONG') stateClass = 'opacity-30 border-transparent';
-                                      else stateClass = 'opacity-50 border-transparent';
-                                  }
-                                  return (
-                                      <button 
-                                          key={opt.id} 
-                                          onClick={() => handleAnswer(isCorrect, (currentQ as Word).id)}
-                                          disabled={answerStatus !== 'IDLE'}
-                                          className={`w-full p-5 rounded-2xl border-2 text-center font-bold text-slate-200 transition-all active:scale-[0.98] shadow-lg text-lg ${stateClass}`}
-                                      >
-                                          {opt.chinese}
-                                      </button>
-                                  );
-                              })}
-                          </div>
-                       </div>
-                  )}
-
-                  {battleMode === 'DICTATION' && (
-                      <div className="w-full max-w-md animate-fade-in text-center pt-6">
-                          <div className="mb-10 relative inline-block group">
-                               <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                               <button onClick={() => speak((currentQ as Word).english)} className="relative w-32 h-32 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 flex items-center justify-center shadow-2xl active:scale-95 transition-all group-hover:border-emerald-500/50">
-                                   <Headphones size={48} className="text-emerald-400" />
-                               </button>
-                               <p className="mt-4 text-slate-400 text-sm font-medium">点击图标播放读音</p>
-                          </div>
-                          
-                          <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-8 max-w-xs mx-auto">
-                              <span className="text-xs text-slate-500 uppercase tracking-widest block mb-1">Definition</span>
-                              <span className="text-lg font-bold text-white">{(currentQ as Word).chinese}</span>
-                          </div>
-
-                          <div className="relative max-w-xs mx-auto">
-                               <input 
-                                  value={userTypedAnswer}
-                                  onChange={(e) => setUserTypedAnswer(e.target.value)}
-                                  onKeyDown={(e) => e.key === 'Enter' && handleDictationSubmit(currentQ as Word)}
-                                  disabled={answerStatus !== 'IDLE'}
-                                  className="w-full bg-slate-800 border-b-2 border-slate-600 px-4 py-3 text-white text-center text-2xl tracking-[0.2em] font-mono focus:border-emerald-500 outline-none uppercase bg-transparent transition-colors placeholder:text-slate-700"
-                                  placeholder="TYPE HERE"
-                                  autoFocus
-                                  autoComplete="off"
-                               />
-                               <button 
-                                  onClick={() => handleDictationSubmit(currentQ as Word)}
-                                  disabled={answerStatus !== 'IDLE'}
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-50 hover:opacity-100"
-                               >
-                                  <ArrowRight size={24} />
-                               </button>
-                          </div>
-                      </div>
-                  )}
-              </div>
-
-              {/* Feedback Bottom Sheet Overlay */}
-              {answerStatus !== 'IDLE' && (
-                  <div className="absolute bottom-0 left-0 w-full z-[100] animate-slide-up">
-                      <div className={`p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 ${answerStatus === 'CORRECT' ? 'bg-emerald-900/95' : 'bg-red-900/95'} backdrop-blur-md`}>
-                          {/* Header */}
-                          <div className="flex items-start gap-4 mb-4">
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${answerStatus === 'CORRECT' ? 'bg-emerald-500 text-emerald-950' : 'bg-red-500 text-red-950'}`}>
-                                  {answerStatus === 'CORRECT' ? <CheckCircle size={28} /> : <XCircle size={28} />}
-                              </div>
-                              <div className="flex-1">
-                                  <h3 className={`text-2xl font-black ${answerStatus === 'CORRECT' ? 'text-emerald-100' : 'text-red-100'}`}>
-                                      {answerStatus === 'CORRECT' ? 'Excellent!' : 'Incorrect'}
-                                  </h3>
-                                  {answerStatus === 'WRONG' && (
-                                      <div className="mt-2">
-                                          <p className="text-red-200 text-xs font-bold uppercase mb-1">Correct Answer</p>
-                                          <p className="text-white font-bold text-lg">
-                                              {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
-                                          </p>
-                                          <p className="text-red-100 text-sm mt-1 border-t border-red-500/30 pt-1">
-                                              {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).chinese : (currentQ as ExamQuestion).explanation}
-                                          </p>
-                                          <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
-                                              <Shield size={10} /> 已加入错题库 (Added to Armory)
-                                          </div>
-                                      </div>
-                                  )}
-                              </div>
-                          </div>
-
-                          {/* Next Button with Timer */}
-                          <button 
-                              onClick={handleNextQuestionClick}
-                              className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${answerStatus === 'CORRECT' ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-white text-red-900 hover:bg-red-50'}`}
-                          >
-                              下一题 Next Question
-                              <span className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center text-xs font-mono">
-                                  {countdown}
-                              </span>
-                          </button>
                       </div>
                   </div>
               )}
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
+                  <div className="text-2xl font-bold text-white">{userStats.matchesPlayed}</div>
+                  <div className="text-xs text-slate-500 uppercase">Matches</div>
+              </div>
+              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
+                  <div className="text-2xl font-bold text-white">{Math.floor(userStats.studyMinutes / 60)}h {userStats.studyMinutes % 60}m</div>
+                  <div className="text-xs text-slate-500 uppercase">Study Time</div>
+              </div>
+          </div>
+
+          <div className="space-y-3">
+            <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-slate-300 border border-slate-700 hover:bg-slate-750 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-700 p-2 rounded-lg"><History size={18}/></div>
+                <span className="font-bold text-sm">对战历史</span>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+            
+            <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-yellow-500 border border-slate-700 hover:bg-slate-750 transition-colors">
+               <div className="flex items-center gap-3">
+                 <div className="bg-yellow-500/10 p-2 rounded-lg"><ShoppingBag size={18}/></div>
+                 <span className="font-bold text-sm">积分商城 (兑换)</span>
+               </div>
+               <ChevronRight size={16} />
+            </button>
+
+            <button onClick={handleLogout} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-red-400 border border-slate-700 hover:bg-slate-750 transition-colors mt-6">
+               <div className="flex items-center gap-3">
+                 <div className="bg-red-500/10 p-2 rounded-lg"><LogOut size={18}/></div>
+                 <span className="font-bold text-sm">退出登录</span>
+               </div>
+            </button>
+          </div>
+          
+          <div className="text-center text-[10px] text-slate-600 font-mono mt-4">
+              ID: {userStats.username} · v1.2.0
+          </div>
+      </div>
       );
   };
 
-  const renderArmory = () => (
-      <div className="h-full bg-slate-900 p-4 overflow-y-auto pb-24">
-          <h2 className="text-2xl font-black text-white italic tracking-tighter mb-2 flex items-center gap-2"><Shield className="text-red-500" /> ARMORY</h2>
-          <p className="text-slate-400 text-xs mb-6">Repair your mistakes to upgrade your rank.</p>
-          
-          {mistakes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-500 opacity-50">
-                  <Shield size={64} className="mb-4" />
-                  <p>No damaged equipment found.</p>
-              </div>
-          ) : (
-              <div className="space-y-3">
-                  {mistakes.map(m => {
-                      const vocab = VOCABULARY_DATA.find(w => w.id === m.targetId);
-                      const question = EXAM_DATA.find(q => q.id === m.targetId) || getExamQuestionsByUnit(m.unit).find(q => q.id === m.targetId);
-                      const title = vocab ? vocab.english : (question ? 'Grammar Question' : 'Unknown Item');
-                      const sub = vocab ? vocab.chinese : (question ? question.question.substring(0, 30) + '...' : '');
-
-                      return (
-                          <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-red-500/20 flex justify-between items-center">
-                              <div>
-                                  <div className="flex items-center gap-2">
-                                      <span className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded border border-red-900/50">{m.type}</span>
-                                      <h3 className="text-slate-200 font-bold">{title}</h3>
-                                  </div>
-                                  <p className="text-xs text-slate-500 mt-1">{sub}</p>
-                                  <div className="text-[10px] text-slate-600 mt-2">Missed {m.count} times • {new Date(m.timestamp).toLocaleDateString()}</div>
-                              </div>
-                              <button 
-                                onClick={() => m.type === 'EXAM' ? startExamRepair(m.targetId) : startVocabRepair(m.targetId)}
-                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
-                              >
-                                  <Wrench size={14} /> 修复
-                              </button>
-                          </div>
-                      );
-                  })}
-              </div>
-          )}
-      </div>
-  );
-
-  const renderProfile = () => (
-      <div className="h-full overflow-y-auto bg-slate-900 pb-24">
-           {/* Header Cover */}
-           <div className="h-40 bg-gradient-to-r from-slate-800 to-slate-900 relative">
-               <div className="absolute -bottom-12 left-6">
-                   <div className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 overflow-hidden relative group cursor-pointer" onClick={() => setAvatarModalOpen(true)}>
-                       <img src={userStats.avatar} alt="User" className="w-full h-full object-cover" />
-                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Edit2 className="text-white" size={20}/></div>
-                   </div>
-               </div>
-           </div>
-           
-           <div className="mt-14 px-6">
-               <div className="flex justify-between items-start mb-6">
-                   <div>
-                       <h1 className="text-2xl font-black text-white">{userStats.username}</h1>
-                       <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mt-1">
-                           <span>UID: {Math.abs(userStats.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)).toString().padStart(8, '0')}</span>
-                           <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
-                           <span>Joined {new Date().getFullYear()}</span>
-                       </div>
-                   </div>
-                   <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><LogOut size={20} /></button>
-               </div>
-
-               {/* Stats Grid */}
-               <div className="grid grid-cols-3 gap-3 mb-8">
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">Matches</div>
-                       <div className="text-xl font-black text-white">{userStats.matchesPlayed}</div>
-                   </div>
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">Win Rate</div>
-                       <div className="text-xl font-black text-white">{userStats.matchesPlayed > 0 ? Math.round((battleHistory.filter(h => h.rank === 'S' || h.rank === 'A').length / userStats.matchesPlayed) * 100) : 0}%</div>
-                   </div>
-                   <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                       <div className="text-xs text-slate-500 uppercase font-bold mb-1">Study Hrs</div>
-                       <div className="text-xl font-black text-white">{(userStats.studyMinutes / 60).toFixed(1)}</div>
-                   </div>
-               </div>
-               
-               {/* Menu List */}
-               <div className="space-y-2">
-                   <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-500"><ShoppingBag size={20} /></div>
-                           <span className="font-bold text-slate-200">奖励兑换商城</span>
-                       </div>
-                       <ChevronRight size={18} className="text-slate-500" />
-                   </button>
-                   <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-blue-500/20 p-2 rounded-lg text-blue-500"><History size={20} /></div>
-                           <span className="font-bold text-slate-200">历史战绩</span>
-                       </div>
-                       <ChevronRight size={18} className="text-slate-500" />
-                   </button>
-                   <button className="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between hover:bg-slate-700 transition-colors opacity-50 cursor-not-allowed">
-                       <div className="flex items-center gap-3">
-                           <div className="bg-purple-500/20 p-2 rounded-lg text-purple-500"><Award size={20} /></div>
-                           <span className="font-bold text-slate-200">成就 (Coming Soon)</span>
-                       </div>
-                       <Lock size={16} className="text-slate-500" />
-                   </button>
-               </div>
-           </div>
-      </div>
-  );
-
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
-      {currentView === AppView.LOGIN && renderLogin()}
-      {currentView === AppView.LOBBY && renderLobby()}
-      {currentView === AppView.DATABASE && renderDatabase()}
-      {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
-      {currentView === AppView.BATTLE && renderBattle()}
-      {currentView === AppView.ARMORY && renderArmory()}
-      {currentView === AppView.PROFILE && renderProfile()}
+        {currentView === AppView.LOGIN && renderLogin()}
+        {currentView === AppView.LOBBY && renderLobby()}
+        {currentView === AppView.DATABASE && renderDatabase()}
+        {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
+        {currentView === AppView.BATTLE && renderBattle()}
+        {currentView === AppView.ARMORY && renderArmory()}
+        {currentView === AppView.PROFILE && renderProfile()}
 
-      {/* Modals */}
-      
-      {/* 1. Mission Start Modal */}
-      {missionModalOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
-            <div className="h-32 bg-slate-800 relative flex items-center justify-center">
-                 <Sword size={64} className="text-slate-700" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
-                 <h2 className="absolute bottom-4 left-6 text-2xl font-black text-white italic">{pendingUnitStart}</h2>
+        {/* Global Modals */}
+        {confirmModal.isOpen && (
+            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-slate-800 border border-slate-600 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+                    <h3 className="text-xl font-bold text-white mb-2">{confirmModal.title}</h3>
+                    <p className="text-slate-300 mb-6">{confirmModal.message}</p>
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">取消</button>
+                        <button onClick={confirmModal.onConfirm} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg">确定</button>
+                    </div>
+                </div>
             </div>
-            <div className="p-6 space-y-3">
-               <button onClick={() => startQuiz('VOCAB')} className="w-full py-4 bg-slate-800 hover:bg-cyan-900/30 border border-slate-600 hover:border-cyan-500/50 rounded-xl flex items-center gap-4 px-4 transition-all group">
-                   <div className="bg-cyan-500/20 p-2 rounded-lg text-cyan-400"><Book size={20}/></div>
-                   <div className="text-left flex-1">
-                       <div className="font-bold text-slate-200 group-hover:text-cyan-400">词汇特训</div>
-                       <div className="text-[10px] text-slate-500">Vocabulary Training • 30 Qs</div>
-                   </div>
-                   <ChevronRight className="text-slate-600" />
-               </button>
-               <button onClick={() => startQuiz('EXAM')} className="w-full py-4 bg-slate-800 hover:bg-purple-900/30 border border-slate-600 hover:border-purple-500/50 rounded-xl flex items-center gap-4 px-4 transition-all group">
-                   <div className="bg-purple-500/20 p-2 rounded-lg text-purple-400"><LayoutGrid size={20}/></div>
-                   <div className="text-left flex-1">
-                       <div className="font-bold text-slate-200 group-hover:text-purple-400">语法填空</div>
-                       <div className="text-[10px] text-slate-500">Grammar & Structure • 8 Qs</div>
-                   </div>
-                   <ChevronRight className="text-slate-600" />
-               </button>
-               <button onClick={() => startQuiz('DICTATION')} className="w-full py-4 bg-slate-800 hover:bg-yellow-900/30 border border-slate-600 hover:border-yellow-500/50 rounded-xl flex items-center gap-4 px-4 transition-all group">
-                   <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-400"><Headphones size={20}/></div>
-                   <div className="text-left flex-1">
-                       <div className="font-bold text-slate-200 group-hover:text-yellow-400">听音拼写</div>
-                       <div className="text-[10px] text-slate-500">Dictation Mode • 15 Qs</div>
-                   </div>
-                   <ChevronRight className="text-slate-600" />
-               </button>
+        )}
+
+        {showRulesModal && (
+            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-6 animate-fade-in" onClick={() => setShowRulesModal(false)}>
+                <div className="bg-slate-900 border border-slate-600 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-slate-400"><X size={20}/></button>
+                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Award className="text-yellow-400"/> 奖励规则说明</h3>
+                    <div className="space-y-4 text-sm text-slate-300">
+                        <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <p className="font-bold text-white mb-1">经验获取</p>
+                            <p>每答对 1 题，获得 <span className="text-purple-400 font-bold">+1 EXP</span>。</p>
+                        </div>
+                        <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <p className="font-bold text-white mb-1">金币获取</p>
+                            <p>每累计答对 10 题，获得 <span className="text-yellow-400 font-bold">+1 Gold</span>。</p>
+                        </div>
+                        <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <p className="font-bold text-white mb-1 flex items-center gap-1"><AlertTriangle size={14} className="text-red-400"/> 重要条件</p>
+                            <p>必须在整套练习中达到 <span className="text-green-400 font-bold">50% 以上正确率</span> 才能获得最终结算奖励。</p>
+                        </div>
+                        <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <p className="font-bold text-white mb-1">每日悬赏</p>
+                            <p>悬赏任务每天重置，每个任务每天仅可领取一次奖励。</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div className="bg-slate-950 p-4 border-t border-slate-800 flex justify-center">
-                <button onClick={() => setMissionModalOpen(false)} className="text-slate-500 text-sm hover:text-white">CANCEL</button>
+        )}
+
+        {rankModalOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in" onClick={() => setRankModalOpen(false)}>
+                <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="text-center mb-6">
+                         <RankEmblem rankName={userStats.rankTitle.split(' ')[0]} className="w-24 h-24 mx-auto mb-4" />
+                         <h2 className="text-2xl font-black text-white">{userStats.rankTitle}</h2>
+                         <p className="text-slate-400 text-sm">Season 1</p>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                             <div className="flex justify-between text-sm text-slate-400 mb-2"><span>Current Exp</span><span>{userStats.exp}</span></div>
+                             <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                                 <div className="h-full bg-yellow-500" style={{width: `${getRankInfo(userStats.exp).progress}%`}}></div>
+                             </div>
+                             <div className="mt-2 text-xs text-slate-500 text-right">Next Star: {getRankInfo(userStats.exp).needed} EXP needed</div>
+                        </div>
+                    </div>
+                </div>
             </div>
+        )}
+
+        {avatarModalOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white">Select Avatar</h3>
+                        <button onClick={() => setAvatarModalOpen(false)}><X size={20} className="text-slate-400"/></button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
+                        {HERO_AVATARS.map(hero => (
+                            <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-1 group">
+                                <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} alt={hero.label} className="w-16 h-16 rounded-full bg-slate-700 border-2 border-transparent group-hover:border-cyan-400 transition-all"/>
+                                <span className="text-[10px] text-slate-400 group-hover:text-white">{hero.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {historyModalOpen && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
+               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-md h-[70vh] flex flex-col relative">
+                  <button onClick={() => setHistoryModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20}/></button>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><History /> 历史战绩</h3>
+                  <div className="flex-1 overflow-y-auto space-y-3">
+                      {battleHistory.length === 0 ? <div className="text-center text-slate-500 mt-10">暂无战斗记录</div> : battleHistory.map((record) => (
+                          <div key={record.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                              <div>
+                                  <div className="font-bold text-slate-200 text-sm">{record.unit}</div>
+                                  <div className="text-xs text-slate-500 mt-1 flex gap-2">
+                                      <span>{new Date(record.timestamp).toLocaleDateString()}</span>
+                                      <span className="text-slate-400">{record.mode}</span>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <div className={`text-xl font-black ${record.rank === 'S' ? 'text-yellow-400' : record.rank === 'A' ? 'text-purple-400' : 'text-slate-400'}`}>{record.rank}</div>
+                                  <div className="text-xs text-slate-500">{record.score} pts</div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+               </div>
           </div>
-        </div>
       )}
 
-      {/* 2. Rank Info Modal */}
-      {rankModalOpen && (
-          <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur flex items-center justify-center p-6 animate-fade-in" onClick={() => setRankModalOpen(false)}>
-              <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
-                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><Trophy className="text-yellow-500"/> 段位规则</h2>
-                  <div className="space-y-2 overflow-y-auto max-h-[60vh] pr-2">
-                      {RANK_CONFIG.map((conf, idx) => {
-                           const isCurrent = userStats.rankTitle.includes(conf.name);
-                           return (
-                               <div key={idx} className={`flex items-center p-3 rounded-lg border ${isCurrent ? 'bg-slate-800 border-yellow-500/50' : 'bg-transparent border-slate-800'}`}>
-                                   <RankEmblem rankName={conf.name} className="w-10 h-10 mr-4 scale-75" />
-                                   <div className="flex-1">
-                                       <h4 className={`font-bold text-sm ${conf.iconColor}`}>{conf.name}</h4>
-                                       <p className="text-[10px] text-slate-500">{conf.name === Rank.KING ? 'Infinite Stars' : `${conf.starsPerSub * conf.subTiers} Stars to advance`}</p>
+      {/* Shop / Admin Modal */}
+      {shopAdminOpen && (
+          <div className="absolute inset-0 z-50 bg-slate-900 flex flex-col animate-fade-in">
+               <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-md z-10">
+                   <h2 className="text-lg font-bold text-white flex items-center gap-2"><ShoppingBag className="text-yellow-400"/> 积分商城</h2>
+                   <button onClick={() => setShopAdminOpen(false)} className="bg-slate-700 p-2 rounded-lg text-slate-300"><X size={20}/></button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-4 pb-24">
+                   <div className="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 p-4 rounded-xl border border-yellow-500/30 mb-6 flex justify-between items-center">
+                       <div>
+                           <div className="text-xs text-yellow-200 uppercase tracking-widest">Current Balance</div>
+                           <div className="text-3xl font-black text-yellow-400">{userStats.gold} <span className="text-sm font-normal text-yellow-200">Gold</span></div>
+                       </div>
+                       {!isAdminMode && <button onClick={() => setAdminLoginOpen(true)} className="text-xs text-slate-500 underline">Teacher Login</button>}
+                   </div>
+
+                   {isAdminMode && (
+                       <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6">
+                           <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Settings size={14}/> 商品管理 (Admin)</h3>
+                           <div className="space-y-3">
+                               <input value={newShopItem.name} onChange={(e) => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="Item Name" className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                               <div className="flex gap-2">
+                                   <input type="number" value={newShopItem.price} onChange={(e) => setNewShopItem({...newShopItem, price: parseInt(e.target.value) || 0})} placeholder="Price" className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                                   <div className="flex-1 overflow-x-auto flex gap-2 no-scrollbar bg-slate-900 border border-slate-600 rounded-lg p-1">
+                                       {SHOP_ICONS.map(icon => (
+                                           <button key={icon} onClick={() => setNewShopItem({...newShopItem, icon})} className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded ${newShopItem.icon === icon ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>{icon}</button>
+                                       ))}
                                    </div>
                                </div>
+                               <div className="flex gap-2">
+                                   <button onClick={handleSaveShopItem} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg text-sm font-bold">{editingItemId ? '保存修改' : '上架商品'}</button>
+                                   {editingItemId && <button onClick={cancelEdit} className="px-4 bg-slate-600 text-white rounded-lg text-sm">取消</button>}
+                               </div>
+                           </div>
+                       </div>
+                   )}
+
+                   <div className="grid grid-cols-2 gap-3">
+                       {shopItems.map(item => {
+                           const canAfford = userStats.gold >= (item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
+                           const realPrice = Math.floor(item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
+                           return (
+                               <div key={item.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center relative group">
+                                   <div className="text-4xl mb-2">{item.icon}</div>
+                                   <h4 className="font-bold text-slate-200 text-sm mb-1">{item.name}</h4>
+                                   <div className="text-yellow-400 font-mono font-bold text-lg mb-3">{realPrice} <span className="text-[10px] text-slate-500">G</span></div>
+                                   
+                                   <button 
+                                      onClick={() => buyItem(item)}
+                                      disabled={!canAfford}
+                                      className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${canAfford ? 'bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg shadow-yellow-900/40' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                                   >
+                                       兑换
+                                   </button>
+                                   
+                                   {isAdminMode && (
+                                       <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           <button onClick={() => startEditItem(item)} className="p-1 bg-blue-600 rounded text-white"><Edit2 size={12}/></button>
+                                           <button onClick={() => deleteShopItem(item.id)} className="p-1 bg-red-600 rounded text-white"><Trash2 size={12}/></button>
+                                       </div>
+                                   )}
+                               </div>
                            )
-                      })}
-                  </div>
-              </div>
+                       })}
+                   </div>
+
+                   <div className="mt-8">
+                       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 pb-1 border-b border-slate-700">兑换记录</h3>
+                       <div className="space-y-2">
+                           {userStats.redemptionHistory.length === 0 ? <div className="text-slate-600 text-xs italic text-center">暂无兑换记录</div> : userStats.redemptionHistory.map(record => (
+                               <div key={record.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-800/50">
+                                   <span className="text-slate-300">{record.itemName}</span>
+                                   <div className="flex items-center gap-3">
+                                       <span className="text-yellow-500 text-xs">-{record.cost} G</span>
+                                       <span className="text-slate-600 text-[10px]">{new Date(record.timestamp).toLocaleDateString()}</span>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
+               </div>
           </div>
       )}
 
-      {/* 3. Repair Modal (Exam) */}
-      {repairModalOpen && activeRepairQuestion && (
-          <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center p-4">
-              <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-red-500/30 shadow-2xl overflow-hidden animate-fade-in-up">
-                  <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center gap-2">
-                      <Wrench className="text-red-400" size={20} />
-                      <h3 className="font-bold text-red-100">装备修复 (Varied Practice)</h3>
-                  </div>
-                  <div className="p-6">
-                      <p className="text-slate-300 mb-6 text-lg font-medium">{activeRepairQuestion.question}</p>
-                      <div className="grid gap-3">
-                          {activeRepairQuestion.options.map((opt, i) => (
-                              <button key={i} onClick={() => handleRepairAnswer(i === activeRepairQuestion?.correctAnswer)} className="p-4 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-left text-slate-200 transition-colors">
-                                  {opt}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
-                  <div className="p-4 bg-slate-950 flex justify-center">
-                      <button onClick={() => setRepairModalOpen(false)} className="text-slate-500 text-sm">GIVE UP</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* 4. Vocab Repair Modal */}
-      {vocabRepairModalOpen && activeRepairVocab && (
-          <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center p-4">
-              <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-blue-500/30 shadow-2xl overflow-hidden animate-fade-in-up">
-                  <div className="bg-blue-900/20 p-4 border-b border-blue-900/30 flex items-center gap-2">
-                      <Wrench className="text-blue-400" size={20} />
-                      <h3 className="font-bold text-blue-100">词汇修复 (Spelling)</h3>
-                  </div>
-                  <div className="p-6 flex flex-col items-center">
-                      <div className="text-slate-400 mb-2">{activeRepairVocab.chinese}</div>
-                      <div className="text-slate-500 text-sm mb-6">{activeRepairVocab.partOfSpeech}</div>
-                      
-                      <input 
-                          autoFocus
-                          value={userTypedAnswer}
-                          onChange={(e) => setUserTypedAnswer(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleVocabRepairSubmit()}
-                          className="w-full bg-slate-800 border-b-2 border-slate-600 focus:border-blue-500 outline-none text-center text-2xl font-bold text-white py-3 mb-6"
-                          placeholder="Type English..."
-                      />
-                      
-                      <button onClick={handleVocabRepairSubmit} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl">CHECK</button>
-                  </div>
-                  <div className="p-4 bg-slate-950 flex justify-center">
-                      <button onClick={() => setVocabRepairModalOpen(false)} className="text-slate-500 text-sm">CANCEL</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* 5. Shop Admin Auth Modal */}
+      {/* Admin Login Modal */}
       {adminLoginOpen && (
-          <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4">
-              <div className="bg-slate-900 w-full max-w-xs rounded-2xl border border-slate-700 p-6 text-center">
-                  <Lock className="mx-auto text-slate-500 mb-4" size={32} />
-                  <h3 className="text-white font-bold mb-4">家长/管理员验证</h3>
-                  <input 
-                      type="password" 
+          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-sm">
+                   <h3 className="text-xl font-bold text-white mb-4">教师管理登录</h3>
+                   <input 
+                      type="password"
                       value={adminPasswordInput}
-                      onChange={e => setAdminPasswordInput(e.target.value)}
-                      placeholder="Password"
-                      className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white mb-4 outline-none focus:border-cyan-500"
-                  />
-                  <div className="flex gap-2">
-                      <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-2 bg-slate-800 text-slate-400 rounded-lg">取消</button>
-                      <button onClick={handleAdminLoginSubmit} className="flex-1 py-2 bg-cyan-600 text-white font-bold rounded-lg">确认</button>
-                  </div>
-              </div>
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      placeholder="Enter Access Code"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"
+                   />
+                   <div className="flex gap-3">
+                       <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-3 bg-slate-700 text-slate-300 rounded-xl font-bold">取消</button>
+                       <button onClick={handleAdminLoginSubmit} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-bold">验证</button>
+                   </div>
+               </div>
           </div>
       )}
 
-      {/* 6. Shop Modal */}
-      {shopAdminOpen && (
-          <div className="fixed inset-0 z-[90] bg-slate-900 overflow-y-auto">
-              <div className="max-w-md mx-auto min-h-screen bg-slate-900 pb-20 relative">
-                  <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between">
-                      <button onClick={() => setShopAdminOpen(false)} className="p-2 bg-slate-800 rounded-full"><ChevronDown className="text-white"/></button>
-                      <h2 className="text-white font-bold">奖励兑换中心</h2>
-                      <div className="w-8"></div>
-                  </div>
+        {repairModalOpen && activeRepairQuestion && (
+             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Wand2 className="text-purple-400"/> 错题重铸 (Repair)</h3>
+                     <p className="text-slate-300 mb-6 text-sm">{activeRepairQuestion.question}</p>
+                     <div className="space-y-3">
+                         {activeRepairQuestion.options.map((opt, i) => (
+                             <button key={i} onClick={() => handleRepairAnswer(i === activeRepairQuestion.correctAnswer)} className="w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-left text-slate-200 text-sm transition-colors border border-slate-600">
+                                 {String.fromCharCode(65 + i)}. {opt}
+                             </button>
+                         ))}
+                     </div>
+                     <button onClick={() => setRepairModalOpen(false)} className="mt-4 w-full py-2 text-slate-500 hover:text-slate-300 text-sm">放弃修复</button>
+                 </div>
+             </div>
+        )}
 
-                  {/* User View: Item List */}
-                  <div className="p-4 grid grid-cols-2 gap-3">
-                      {shopItems.map(item => (
-                          <div key={item.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col justify-between relative group">
-                              {isAdminMode && (
-                                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button onClick={(e) => { e.stopPropagation(); startEditItem(item); }} className="p-1 bg-blue-500/20 text-blue-400 rounded"><Edit2 size={12}/></button>
-                                      <button onClick={(e) => { e.stopPropagation(); deleteShopItem(item.id); }} className="p-1 bg-red-500/20 text-red-400 rounded"><Trash2 size={12}/></button>
-                                  </div>
-                              )}
-                              <div className="text-3xl mb-2">{item.icon}</div>
-                              <h3 className="text-slate-200 font-bold text-sm mb-1">{item.name}</h3>
-                              <p className="text-[10px] text-slate-500 mb-3 leading-tight">{item.description}</p>
-                              <button onClick={() => buyItem(item)} className="w-full py-2 bg-slate-700 hover:bg-yellow-600/20 hover:text-yellow-400 text-slate-300 rounded-lg text-xs font-bold border border-slate-600 hover:border-yellow-500/50 transition-all flex items-center justify-center gap-1">
-                                  <span className="text-yellow-500">🪙</span> {Math.floor(item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier)}
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-
-                  {/* Admin Toggle */}
-                  {!isAdminMode && (
-                      <div className="p-4">
-                          <button onClick={() => setAdminLoginOpen(true)} className="w-full py-3 border border-slate-700 border-dashed rounded-xl text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors">
-                              管理员登录 (添加/管理商品)
-                          </button>
-                      </div>
-                  )}
-
-                  {/* Admin View: Add/Edit */}
-                  {isAdminMode && (
-                      <div className="p-4 border-t border-slate-800 bg-slate-800/50 mt-4">
-                          <h3 className="text-slate-400 text-xs font-bold mb-3 uppercase">{editingItemId ? '编辑商品' : '添加新商品 (Admin)'}</h3>
-                          <div className="space-y-3">
-                              <input value={newShopItem.name} onChange={e => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="商品名称" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                              <div className="flex gap-2">
-                                  <input type="number" value={newShopItem.price} onChange={e => setNewShopItem({...newShopItem, price: Number(e.target.value)})} placeholder="价格" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                                  <select value={newShopItem.icon} onChange={e => setNewShopItem({...newShopItem, icon: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
-                                      {SHOP_ICONS.map(icon => <option key={icon} value={icon}>{icon}</option>)}
-                                  </select>
-                              </div>
-                              <div className="flex gap-2">
-                                  <button onClick={handleSaveShopItem} className="flex-1 bg-cyan-600 text-white font-bold py-2 rounded-lg text-sm">{editingItemId ? '保存修改' : '添加商品'}</button>
-                                  {editingItemId && <button onClick={cancelEdit} className="px-4 bg-slate-700 text-slate-300 font-bold py-2 rounded-lg text-sm">取消</button>}
-                              </div>
-                          </div>
-                      </div>
-                  )}
-              </div>
-          </div>
-      )}
-
-      {/* 7. History Modal */}
-      {historyModalOpen && (
-          <div className="fixed inset-0 z-[70] bg-slate-900 flex flex-col animate-slide-in-right">
-              <div className="p-4 border-b border-slate-800 flex items-center gap-4">
-                  <button onClick={() => setHistoryModalOpen(false)}><ChevronLeft className="text-white"/></button>
-                  <h2 className="text-white font-bold">Battle History</h2>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {battleHistory.map(record => (
-                      <div key={record.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                          <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                  <span className={`text-xs font-black px-1.5 rounded ${record.rank === 'S' ? 'bg-yellow-500 text-black' : record.rank === 'A' ? 'bg-purple-500 text-white' : 'bg-slate-600 text-white'}`}>{record.rank}</span>
-                                  <span className="text-slate-200 font-bold">{record.unit}</span>
-                              </div>
-                              <div className="text-[10px] text-slate-500">{new Date(record.timestamp).toLocaleString()} • {record.mode}</div>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-xl font-black text-white">{record.score}</div>
-                              <div className="text-[10px] text-slate-500">Score</div>
-                          </div>
-                      </div>
-                  ))}
-                  {battleHistory.length === 0 && <div className="text-center text-slate-500 mt-10">No records yet. Go fight!</div>}
-              </div>
-          </div>
-      )}
-
-      {/* 8. Avatar Selection Modal */}
-      {avatarModalOpen && (
-          <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4">
-              <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-700 p-6">
-                  <h3 className="text-white font-bold mb-6 text-center">Select Avatar</h3>
-                  <div className="grid grid-cols-4 gap-4 max-h-[50vh] overflow-y-auto p-2 scrollbar-hide">
-                      {HERO_AVATARS.map((hero) => (
-                          <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-1 group">
-                              <img 
-                                src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} 
-                                className={`w-12 h-12 rounded-full border-2 bg-slate-800 transition-all ${userStats.avatar.includes(hero.name) ? 'border-cyan-400 scale-110' : 'border-slate-700 group-hover:border-slate-500'}`} 
-                                alt={hero.label}
-                              />
-                              <span className="text-[10px] text-slate-500">{hero.label}</span>
-                          </button>
-                      ))}
-                  </div>
-                  <button onClick={() => setAvatarModalOpen(false)} className="w-full mt-6 py-3 bg-slate-800 text-white font-bold rounded-xl border border-slate-700">Close</button>
-              </div>
-          </div>
-      )}
-
-      {/* 9. Confirm Modal */}
-      {confirmModal.isOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
-              <div className="bg-slate-900 w-full max-w-xs rounded-2xl border border-slate-600 shadow-2xl p-6 text-center">
-                  <h3 className="text-lg font-bold text-white mb-2">{confirmModal.title}</h3>
-                  <p className="text-sm text-slate-400 mb-6">{confirmModal.message}</p>
-                  <div className="flex gap-3">
-                      <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="flex-1 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 font-bold text-sm">取消</button>
-                      <button onClick={confirmModal.onConfirm} className="flex-1 py-2.5 bg-cyan-600 rounded-lg text-white font-bold text-sm hover:bg-cyan-500">确定</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Floating Reward Animation */}
-      {floatingReward && (
-          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[100] pointer-events-none animate-float-up">
-              <div className="bg-yellow-500 text-black font-black px-4 py-2 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.6)] flex items-center gap-2 text-sm border-2 border-yellow-200">
-                  <Gift size={16}/> {floatingReward.text}
-              </div>
-          </div>
-      )}
+        {vocabRepairModalOpen && activeRepairVocab && (
+             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl text-center">
+                     <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2 justify-center"><Wand2 className="text-blue-400"/> 拼写特训</h3>
+                     <p className="text-slate-400 mb-6 text-sm">请输入单词 "{activeRepairVocab.chinese}" 的英文</p>
+                     <input 
+                        value={userTypedAnswer} 
+                        onChange={e => setUserTypedAnswer(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center text-xl text-white font-mono mb-4 focus:border-blue-500 outline-none"
+                        placeholder="Type here..."
+                        autoFocus
+                     />
+                     <div className="flex gap-3">
+                         <button onClick={() => setVocabRepairModalOpen(false)} className="flex-1 py-2 text-slate-500 hover:text-slate-300">取消</button>
+                         <button onClick={handleVocabRepairSubmit} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">提交</button>
+                     </div>
+                 </div>
+             </div>
+        )}
     </Layout>
   );
 };
