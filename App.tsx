@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent } from 'lucide-react';
+import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent, CircleDollarSign } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
 import { VOCABULARY_DATA, EXAM_DATA, UNITS, getWordsByUnit, getExamQuestionsByUnit, LIBRARY_STRUCTURE } from './services/vocabData';
@@ -354,8 +354,8 @@ const App: React.FC = () => {
   const timerRef = useRef<number | null>(null);
   const nextQuestionRef = useRef<() => void>(() => {});
   
-  // Collapsed Categories State
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  // Expanded Categories State (Default to empty set = all collapsed)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // Modals & UI
   const [repairModalOpen, setRepairModalOpen] = useState(false);
@@ -370,6 +370,10 @@ const App: React.FC = () => {
   const [avatarModalOpen, setAvatarModalOpen] = useState(false); 
   const [levelRulesOpen, setLevelRulesOpen] = useState(false); 
   const [rewardSummary, setRewardSummary] = useState({ exp: 0, gold: 0, message: '' });
+  // Reward Rules Modal
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  // Reward Floating Effect
+  const [floatingReward, setFloatingReward] = useState<{id: number, text: string} | null>(null);
   
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
       isOpen: false, title: '', message: '', onConfirm: () => {}
@@ -632,6 +636,9 @@ const App: React.FC = () => {
     if (correct) {
       setAnswerStatus('CORRECT');
       setQuizScore(prev => prev + 10);
+      // Trigger reward effect
+      setFloatingReward({ id: Date.now(), text: '+1 经验' });
+      setTimeout(() => setFloatingReward(null), 1000);
     } else {
       setAnswerStatus('WRONG');
       setMistakes(prev => {
@@ -702,9 +709,9 @@ const App: React.FC = () => {
     if (accuracy >= 0.5) {
         expGained = Math.floor(correctCount); // 1 exp per correct
         goldGained = Math.floor(correctCount / 10); // 1 gold per 10 correct
-        message = `Accuracy ${Math.round(accuracy * 100)}% (>=50%). Rewards Granted!`;
+        message = `正确率 ${Math.round(accuracy * 100)}% (>=50%)。奖励已发放！`;
     } else {
-        message = `Accuracy ${Math.round(accuracy * 100)}% (<50%). No Rewards.`;
+        message = `正确率 ${Math.round(accuracy * 100)}% (<50%)。本次无奖励。`;
     }
 
     setRewardSummary({ exp: expGained, gold: goldGained, message });
@@ -726,50 +733,41 @@ const App: React.FC = () => {
     };
     setBattleHistory(prev => [newRecord, ...prev].slice(0, 20));
 
-    // Daily Quest Check
-    const today = new Date().toISOString().split('T')[0];
-    let newDailyClaims = { ...userStats.dailyQuestsClaimed };
-    if (!newDailyClaims[today]) newDailyClaims[today] = [];
-    
-    let questRewardsGold = 0;
-    let questRewardsExp = 0;
-    
-    // Check Matches Played Today
-    const matchesToday = [newRecord, ...battleHistory].filter(r => {
-        const rDate = new Date(r.timestamp).toISOString().split('T')[0];
-        return rDate === today;
-    }).length;
-
-    // Quest 1: Play 3 matches -> 50 Gold
-    if (matchesToday >= 3 && !newDailyClaims[today].includes('quest_match_3')) {
-        questRewardsGold += 50;
-        newDailyClaims[today].push('quest_match_3');
-        alert("Daily Quest Completed: Play 3 Matches! (+50 Gold)");
-    }
-
-    // Quest 2: 5 Win Streak (Approximated as 5 recent matches with Rank A or S)
-    const recentWins = [newRecord, ...battleHistory].slice(0, 5).filter(r => r.rank === 'S' || r.rank === 'A').length;
-    if (recentWins >= 5 && !newDailyClaims[today].includes('quest_win_5')) {
-        questRewardsExp += 100;
-        newDailyClaims[today].push('quest_win_5');
-        alert("Daily Quest Completed: 5 High Rank Streak! (+100 EXP)");
-    }
-
     setUserStats(prev => {
-        const newExp = prev.exp + expGained + questRewardsExp;
+        const newExp = prev.exp + expGained;
         const currentTotalGold = prev.totalGoldEarned || prev.gold;
-        const newTotalGold = currentTotalGold + goldGained + questRewardsGold;
+        const newTotalGold = currentTotalGold + goldGained;
         
         return {
             ...prev,
             exp: newExp,
-            gold: prev.gold + goldGained + questRewardsGold,
+            gold: prev.gold + goldGained,
             totalGoldEarned: newTotalGold,
             matchesPlayed: prev.matchesPlayed + 1,
-            correctCount: prev.correctCount + correctCount,
-            dailyQuestsClaimed: newDailyClaims
+            correctCount: prev.correctCount + correctCount
         };
     });
+  };
+
+  const claimDailyReward = (questId: string, type: 'GOLD' | 'EXP', amount: number) => {
+      const today = new Date().toISOString().split('T')[0];
+      const claimed = userStats.dailyQuestsClaimed[today] || [];
+      if (claimed.includes(questId)) return;
+
+      setUserStats(prev => {
+          const newClaims = { ...prev.dailyQuestsClaimed };
+          if (!newClaims[today]) newClaims[today] = [];
+          newClaims[today].push(questId);
+          
+          return {
+              ...prev,
+              gold: type === 'GOLD' ? prev.gold + amount : prev.gold,
+              exp: type === 'EXP' ? prev.exp + amount : prev.exp,
+              totalGoldEarned: type === 'GOLD' ? (prev.totalGoldEarned || prev.gold) + amount : (prev.totalGoldEarned || prev.gold),
+              dailyQuestsClaimed: newClaims
+          };
+      });
+      alert(`领取成功！获得 ${amount} ${type === 'GOLD' ? '金币' : '经验'}`);
   };
   
   // ... (Repair Logic remains same) ...
@@ -936,7 +934,7 @@ const App: React.FC = () => {
   };
 
   const toggleCategory = (catId: string) => {
-      setCollapsedCategories(prev => {
+      setExpandedCategories(prev => {
           const next = new Set(prev);
           if (next.has(catId)) next.delete(catId);
           else next.add(catId);
@@ -984,7 +982,21 @@ const App: React.FC = () => {
       </div>
   );
 
-  const renderLobby = () => (
+  const renderLobby = () => {
+    // Daily Quest Check
+    const today = new Date().toISOString().split('T')[0];
+    const claimedToday = userStats.dailyQuestsClaimed[today] || [];
+    
+    // Check Matches Played Today
+    const matchesToday = battleHistory.filter(r => {
+        const rDate = new Date(r.timestamp).toISOString().split('T')[0];
+        return rDate === today;
+    }).length;
+
+    // Check Win Streak Today (Rank A or S)
+    const recentWins = battleHistory.slice(0, 5).filter(r => (r.rank === 'S' || r.rank === 'A') && new Date(r.timestamp).toISOString().split('T')[0] === today).length;
+
+    return (
     <div className="p-4 space-y-6 animate-fade-in pb-24 h-full overflow-y-auto">
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -1043,13 +1055,27 @@ const App: React.FC = () => {
       <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/50 shadow-md">
         <div className="flex items-center gap-2 mb-3 border-b border-slate-700 pb-2"><Star size={16} className="text-yellow-400" /><h3 className="text-sm font-bold text-slate-300">每日悬赏 (Daily Quest)</h3></div>
         <div className="space-y-3">
-          <div className="flex justify-between items-center text-sm"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-slate-300">完成 3 场对局</span></div><span className="text-yellow-500 font-mono text-xs">+50 金币</span></div>
-          <div className="flex justify-between items-center text-sm"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500"></span><span className="text-slate-300">达成 5 连胜</span></div><span className="text-yellow-500 font-mono text-xs">+100 经验</span></div>
-          <div className="flex justify-between items-center text-sm"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span><span className="text-slate-300">达成 15 连胜</span></div><span className="text-yellow-500 font-mono text-xs">+200 经验</span></div>
+          <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-slate-300">完成 3 场对局 ({matchesToday}/3)</span></div>
+              {matchesToday >= 3 ? (
+                  claimedToday.includes('quest_match_3') ? 
+                  <span className="text-slate-500 text-xs font-bold border border-slate-600 px-2 py-1 rounded">已领取</span> : 
+                  <button onClick={() => claimDailyReward('quest_match_3', 'GOLD', 50)} className="bg-yellow-600 hover:bg-yellow-500 text-white text-xs px-2 py-1 rounded font-bold shadow-lg animate-pulse">领取 50G</button>
+              ) : <span className="text-yellow-500 font-mono text-xs">+50 金币</span>}
+          </div>
+          <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500"></span><span className="text-slate-300">达成 5 连胜 ({recentWins}/5)</span></div>
+              {recentWins >= 5 ? (
+                  claimedToday.includes('quest_win_5') ? 
+                  <span className="text-slate-500 text-xs font-bold border border-slate-600 px-2 py-1 rounded">已领取</span> : 
+                  <button onClick={() => claimDailyReward('quest_win_5', 'EXP', 100)} className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-2 py-1 rounded font-bold shadow-lg animate-pulse">领取 100EXP</button>
+              ) : <span className="text-yellow-500 font-mono text-xs">+100 经验</span>}
+          </div>
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderDatabase = () => {
     const currentCategory = LIBRARY_STRUCTURE.find(c => c.id === selectedCategory);
@@ -1090,18 +1116,33 @@ const App: React.FC = () => {
 
   const renderBattlePrep = () => (
     <div className="p-6 flex flex-col h-full items-center justify-start space-y-6 overflow-y-auto relative pb-24">
-      <div className="text-center space-y-2 mt-4"><Sword size={48} className="text-yellow-400 mx-auto" /><h2 className="text-2xl font-bold text-white">选择作战地图</h2><p className="text-slate-400">选择一个关卡开始挑战</p></div>
+      <div className="flex justify-between items-center w-full max-w-sm mb-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700 shadow-lg">
+          <div className="flex gap-6">
+              <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total EXP</span>
+                  <span className="font-black text-xl text-purple-400 flex items-center gap-1"><Zap size={14} className="fill-current"/> {userStats.exp}</span>
+              </div>
+              <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gold</span>
+                  <span className="font-black text-xl text-yellow-400 flex items-center gap-1"><CircleDollarSign size={14} className="fill-current"/> {userStats.gold}</span>
+              </div>
+          </div>
+          <button onClick={() => setShowRulesModal(true)} className="p-2 bg-slate-700/50 hover:bg-slate-700 rounded-full text-slate-300 hover:text-white transition-colors"><Info size={20} /></button>
+      </div>
+
+      <div className="text-center space-y-2 mt-2 mb-6"><Sword size={48} className="text-yellow-400 mx-auto" /><h2 className="text-2xl font-bold text-white">选择作战地图</h2><p className="text-slate-400">选择一个关卡开始挑战</p></div>
       <div className="w-full max-w-sm space-y-6 pb-20">
         {LIBRARY_STRUCTURE.map((category) => (
           <div key={category.id} className="animate-fade-in">
-             <button onClick={() => toggleCategory(category.id)} className="w-full flex items-center justify-between text-slate-300 border-b border-slate-800 pb-2 mb-3 hover:text-white transition-colors">
-                 <div className="flex items-center gap-2"><Layers size={14} className="text-blue-400"/><span className="font-bold text-sm">{category.name}</span></div>
-                 {collapsedCategories.has(category.id) ? <ChevronDown size={16}/> : <ChevronUp size={16}/>}
+             <button onClick={() => toggleCategory(category.id)} className={`w-full flex items-center justify-between text-left p-3 rounded-lg transition-colors ${expandedCategories.has(category.id) ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50 text-slate-300'}`}>
+                 <div className="flex items-center gap-3"><Layers size={18} className="text-blue-400"/><span className="font-bold text-sm">{category.name}</span></div>
+                 {expandedCategories.has(category.id) ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
              </button>
              
-             {!collapsedCategories.has(category.id) && (
-                 category.units.length === 0 ? <div className="text-center p-4 bg-slate-800/50 rounded-xl border border-dashed border-slate-700 text-slate-500 text-xs mb-4">即将开放区域...</div> : (
-                   <div className="space-y-2 mb-4">{category.units.map((unit, idx) => (
+             {expandedCategories.has(category.id) && (
+                 <div className="mt-2 pl-2 border-l-2 border-slate-800 ml-4 space-y-2">
+                 {category.units.length === 0 ? <div className="text-center p-3 text-slate-500 text-xs italic">即将开放区域...</div> : (
+                   category.units.map((unit, idx) => (
                        <button key={unit} onClick={() => handleUnitClick(unit)} className={`w-full p-3 rounded-xl flex justify-between items-center group transition-all border ${unit === '全册综合测试' ? 'bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border-yellow-500/50 shadow-lg shadow-yellow-900/20 hover:border-yellow-400' : 'bg-slate-800 hover:bg-slate-700 border-slate-600'}`}>
                            <div className="flex items-center gap-3">
                                <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-[10px] border ${unit === '全册综合测试' ? 'bg-yellow-500 text-slate-900 border-yellow-400 font-bold' : 'bg-slate-900 text-slate-500 border-slate-700 group-hover:border-yellow-500 group-hover:text-yellow-500'}`}>
@@ -1111,8 +1152,9 @@ const App: React.FC = () => {
                            </div>
                            <ChevronRight size={16} className={`group-hover:text-white ${unit === '全册综合测试' ? 'text-yellow-500' : 'text-slate-500'}`}/>
                        </button>
-                   ))}</div>
-                 )
+                   ))
+                 )}
+                 </div>
              )}
           </div>
         ))}
@@ -1187,7 +1229,14 @@ const App: React.FC = () => {
             </div>
 
             {/* Content Area - Enhanced Styling */}
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10">
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start pt-10 relative">
+                {/* Floating Reward Effect */}
+                {floatingReward && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce text-yellow-400 font-bold text-2xl drop-shadow-lg pointer-events-none whitespace-nowrap bg-black/50 px-4 py-2 rounded-full border border-yellow-500/50 backdrop-blur-md">
+                        {floatingReward.text}
+                    </div>
+                )}
+
                 {battleMode === 'EXAM' && (
                     <div className="w-full max-w-md animate-fade-in relative">
                         {/* Question Card */}
@@ -1318,6 +1367,9 @@ const App: React.FC = () => {
                                         <p className="text-white font-bold text-lg">
                                             {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).english : (currentQ as ExamQuestion).options[(currentQ as ExamQuestion).correctAnswer]}
                                         </p>
+                                        <p className="text-red-100 text-sm mt-1 border-t border-red-500/30 pt-1">
+                                            {battleMode === 'VOCAB' || battleMode === 'DICTATION' ? (currentQ as Word).chinese : (currentQ as ExamQuestion).explanation}
+                                        </p>
                                         <div className="inline-flex items-center gap-1 mt-2 bg-red-950/50 px-2 py-1 rounded text-[10px] text-red-300 border border-red-500/30">
                                             <Shield size={10} /> 已加入错题库 (Added to Armory)
                                         </div>
@@ -1344,375 +1396,214 @@ const App: React.FC = () => {
   };
 
   const renderArmory = () => (
-    <div className="p-4 h-full overflow-y-auto pb-24">
-      <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-        <Shield className="text-red-400" /> 军械库 (Armory)
-      </h2>
-      {mistakes.length === 0 ? (
-         <div className="text-center text-slate-500 mt-20">
-           <CheckCircle size={48} className="mx-auto mb-2 text-green-500/50"/>
-           <p>暂无错题，继续保持！</p>
-         </div>
-      ) : (
-         <div className="space-y-3">
-           {mistakes.map(m => {
-             const isVocab = m.type === 'VOCAB' || m.type === 'DICTATION';
-             const originalWord = VOCABULARY_DATA.find(w => w.id === m.targetId);
-             const originalQuestion = getExamQuestionsByUnit(m.unit).find(q => q.id === m.targetId) || EXAM_DATA.find(q => q.id === m.targetId);
-             
-             if (!originalWord && !originalQuestion) return null;
-
-             return (
-               <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                 <div className="flex-1">
-                   <div className="flex items-center gap-2 mb-1">
-                     <span className={`text-[10px] px-1.5 rounded ${isVocab ? 'bg-blue-900/50 text-blue-400' : 'bg-purple-900/50 text-purple-400'}`}>
-                       {m.type}
-                     </span>
-                     <span className="text-xs text-slate-500">{m.unit}</span>
-                   </div>
-                   <div className="font-bold text-slate-200">
-                     {isVocab ? originalWord?.english : 'Grammar Question'}
-                   </div>
-                   <div className="text-xs text-slate-400 truncate max-w-[200px]">
-                     {isVocab ? originalWord?.chinese : originalQuestion?.question}
-                   </div>
-                 </div>
-                 <button 
-                   onClick={() => isVocab ? startVocabRepair(m.targetId) : startExamRepair(m.targetId)}
-                   className="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-red-600/50"
-                 >
-                   Repair
-                 </button>
-               </div>
-             );
-           })}
-         </div>
-      )}
-    </div>
+      <div className="p-6 h-full overflow-y-auto pb-24">
+        <header className="mb-6">
+            <h2 className="text-2xl font-black text-white flex items-center gap-2"><Shield className="text-red-500" /> 军械库 (Armory)</h2>
+            <p className="text-slate-400 text-sm">错题自动收录于此，修复它们以强化装备。</p>
+        </header>
+        {mistakes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 opacity-50">
+                <CheckCircle size={60} className="text-green-500 mb-4"/>
+                <p className="text-lg">暂无错题，继续保持！</p>
+            </div>
+        ) : (
+            <div className="space-y-3">
+                {mistakes.map((mistake) => (
+                    <div key={mistake.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${mistake.type === 'EXAM' ? 'bg-purple-900/30 border-purple-500 text-purple-400' : 'bg-blue-900/30 border-blue-500 text-blue-400'}`}>{mistake.type}</span>
+                                <span className="text-xs text-slate-500">{new Date(mistake.timestamp).toLocaleDateString()}</span>
+                            </div>
+                            <div className="text-slate-300 font-bold text-sm">
+                                {mistake.type === 'VOCAB' || mistake.type === 'DICTATION' ? (
+                                    <span>Vocabulary Repair: <span className="text-white">{(VOCABULARY_DATA.find(w => w.id === mistake.targetId)?.english) || 'Unknown'}</span></span>
+                                ) : (
+                                    <span>Grammar Repair: {mistake.unit} Q</span>
+                                )}
+                            </div>
+                            <div className="text-xs text-red-400 mt-1">错误次数: {mistake.count}</div>
+                        </div>
+                        <button 
+                            onClick={() => mistake.type === 'EXAM' ? startExamRepair(mistake.targetId) : startVocabRepair(mistake.targetId)}
+                            className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                        >
+                            REPAIR
+                        </button>
+                    </div>
+                ))}
+            </div>
+        )}
+      </div>
   );
 
-  const renderProfile = () => {
-      const { discountPercent, nextLevelGold } = getLevelInfo(userStats.totalGoldEarned);
-      const goldProgress = ((userStats.totalGoldEarned % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
-
-      return (
-      <div className="p-4 h-full overflow-y-auto pb-24 space-y-6">
-          <div className="flex items-center gap-4">
-              <img src={userStats.avatar} alt="Avatar" className="w-20 h-20 rounded-full border-4 border-slate-700 bg-slate-800" />
+  const renderProfile = () => (
+      <div className="p-6 h-full overflow-y-auto pb-24 animate-fade-in">
+          <div className="flex items-center gap-4 mb-8">
+              <img src={userStats.avatar} alt="Profile" className="w-20 h-20 rounded-full border-4 border-slate-700 bg-slate-800 shadow-xl"/>
               <div>
-                  <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
-                  <div className="text-cyan-400 font-bold">{userStats.rankTitle}</div>
-                  <div className="text-xs text-slate-400">Level {userStats.level} · {userStats.gold} Gold</div>
+                  <h2 className="text-2xl font-bold text-white mb-1">{userStats.username}</h2>
+                  <div className="flex items-center gap-2">
+                      <span className="bg-yellow-600/20 text-yellow-400 border border-yellow-600/50 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1"><Crown size={12}/> Lv.{userStats.level}</span>
+                      <span className="bg-blue-600/20 text-blue-400 border border-blue-600/50 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1"><Award size={12}/> {userStats.rankTitle}</span>
+                  </div>
               </div>
           </div>
-          
-          <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-6">
-              <button onClick={() => setLevelRulesOpen(!levelRulesOpen)} className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg text-white font-black italic">
-                          {userStats.level}
-                      </div>
-                      <div className="text-left">
-                          <p className="text-sm font-bold text-white flex items-center gap-2">当前等级权益 <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded border border-yellow-500/30">折扣 -{discountPercent}%</span></p>
-                          <div className="w-32 h-1.5 bg-slate-900 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${goldProgress}%` }}></div>
+
+          <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+                  <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Matches</div>
+                  <div className="text-2xl font-black text-white">{userStats.matchesPlayed}</div>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+                  <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Win Rate</div>
+                  <div className="text-2xl font-black text-white">{userStats.matchesPlayed > 0 ? Math.round((userStats.correctCount / (battleHistory.reduce((acc, curr) => acc + curr.maxScore/10, 0) || 1)) * 100) : 0}%</div>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+                  <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Study Time</div>
+                  <div className="text-2xl font-black text-white">{Math.floor(userStats.studyMinutes / 60)}<span className="text-sm text-slate-500 font-normal">h</span> {userStats.studyMinutes % 60}<span className="text-sm text-slate-500 font-normal">m</span></div>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+                  <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Streak</div>
+                  <div className="text-2xl font-black text-orange-500 flex items-center gap-1"><Flame size={20} className="fill-orange-500"/> {userStats.loginStreak}</div>
+              </div>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden mb-8">
+              <div className="p-4 border-b border-slate-700 flex items-center gap-2"><History size={16} className="text-slate-400"/><h3 className="font-bold text-slate-200">Battle History</h3></div>
+              <div className="max-h-60 overflow-y-auto">
+                  {battleHistory.map(record => (
+                      <div key={record.id} className="p-4 border-b border-slate-700/50 flex justify-between items-center hover:bg-slate-800/50 transition-colors">
+                          <div>
+                              <div className="text-sm font-bold text-slate-300">{record.unit}</div>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                  <span>{record.mode}</span>
+                                  <span>•</span>
+                                  <span>{new Date(record.timestamp).toLocaleDateString()}</span>
+                              </div>
                           </div>
+                          <div className={`text-xl font-black italic ${record.rank === 'S' ? 'text-yellow-400' : record.rank === 'A' ? 'text-purple-400' : 'text-slate-500'}`}>{record.rank}</div>
                       </div>
-                  </div>
-                  <div className="text-slate-400">
-                      {levelRulesOpen ? <ChevronUp size={20}/> : <Info size={20}/>}
-                  </div>
-              </button>
-              
-              {levelRulesOpen && (
-                  <div className="px-4 pb-4 pt-0 text-xs text-slate-400 bg-slate-800/50 border-t border-slate-700/50 animate-fade-in">
-                      <div className="mt-3 space-y-2">
-                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>每累计获得 <span className="text-yellow-400 font-mono">5000</span> 金币，等级提升 1 级。</p>
-                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>每提升 1 级，商城兑换折扣增加 <span className="text-cyan-400 font-mono">1%</span>。</p>
-                          <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>最高折扣上限为 <span className="text-red-400 font-mono">20%</span> (Lv.21)。</p>
-                          <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-700 text-center font-mono text-slate-500">
-                              当前累计金币: <span className="text-white">{userStats.totalGoldEarned}</span> / 下一级需: <span className="text-white">{nextLevelGold}</span>
-                          </div>
-                      </div>
-                  </div>
-              )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
-                  <div className="text-2xl font-bold text-white">{userStats.matchesPlayed}</div>
-                  <div className="text-xs text-slate-500 uppercase">Matches</div>
-              </div>
-              <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 text-center">
-                  <div className="text-2xl font-bold text-white">{Math.floor(userStats.studyMinutes / 60)}h {userStats.studyMinutes % 60}m</div>
-                  <div className="text-xs text-slate-500 uppercase">Study Time</div>
+                  ))}
+                  {battleHistory.length === 0 && <div className="p-4 text-center text-xs text-slate-500">No battle records yet.</div>}
               </div>
           </div>
 
-          <div className="space-y-3">
-            <button onClick={() => setHistoryModalOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-slate-300 border border-slate-700 hover:bg-slate-750 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="bg-slate-700 p-2 rounded-lg"><History size={18}/></div>
-                <span className="font-bold text-sm">对战历史</span>
-              </div>
-              <ChevronRight size={16} />
-            </button>
-            
-            <button onClick={() => setShopAdminOpen(true)} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-yellow-500 border border-slate-700 hover:bg-slate-750 transition-colors">
-               <div className="flex items-center gap-3">
-                 <div className="bg-yellow-500/10 p-2 rounded-lg"><ShoppingBag size={18}/></div>
-                 <span className="font-bold text-sm">积分商城 (兑换)</span>
-               </div>
-               <ChevronRight size={16} />
-            </button>
-
-            <button onClick={handleLogout} className="w-full bg-slate-800 p-4 rounded-xl flex justify-between items-center text-red-400 border border-slate-700 hover:bg-slate-750 transition-colors mt-6">
-               <div className="flex items-center gap-3">
-                 <div className="bg-red-500/10 p-2 rounded-lg"><LogOut size={18}/></div>
-                 <span className="font-bold text-sm">退出登录</span>
-               </div>
-            </button>
-          </div>
-          
-          <div className="text-center text-[10px] text-slate-600 font-mono mt-4">
-              ID: {userStats.username} · v1.2.0
-          </div>
+          <button onClick={handleLogout} className="w-full py-4 rounded-xl bg-slate-800 text-red-400 font-bold border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+              <LogOut size={18}/> 退出登录 (Log Out)
+          </button>
       </div>
-      );
-  };
+  );
 
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
-        {currentView === AppView.LOGIN && renderLogin()}
-        {currentView === AppView.LOBBY && renderLobby()}
-        {currentView === AppView.DATABASE && renderDatabase()}
-        {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
-        {currentView === AppView.BATTLE && renderBattle()}
-        {currentView === AppView.ARMORY && renderArmory()}
-        {currentView === AppView.PROFILE && renderProfile()}
+      {currentView === AppView.LOGIN && renderLogin()}
+      {currentView === AppView.LOBBY && renderLobby()}
+      {currentView === AppView.DATABASE && renderDatabase()}
+      {currentView === AppView.BATTLE_PREP && renderBattlePrep()}
+      {currentView === AppView.BATTLE && renderBattle()}
+      {currentView === AppView.ARMORY && renderArmory()}
+      {currentView === AppView.PROFILE && renderProfile()}
 
-        {/* Global Modals */}
-        {confirmModal.isOpen && (
-            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-slate-800 border border-slate-600 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-                    <h3 className="text-xl font-bold text-white mb-2">{confirmModal.title}</h3>
-                    <p className="text-slate-300 mb-6">{confirmModal.message}</p>
-                    <div className="flex justify-end gap-3">
-                        <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">取消</button>
-                        <button onClick={confirmModal.onConfirm} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg">确定</button>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {rankModalOpen && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in" onClick={() => setRankModalOpen(false)}>
-                <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
-                    <div className="text-center mb-6">
-                         <RankEmblem rankName={userStats.rankTitle.split(' ')[0]} className="w-24 h-24 mx-auto mb-4" />
-                         <h2 className="text-2xl font-black text-white">{userStats.rankTitle}</h2>
-                         <p className="text-slate-400 text-sm">Season 1</p>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                             <div className="flex justify-between text-sm text-slate-400 mb-2"><span>Current Exp</span><span>{userStats.exp}</span></div>
-                             <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-                                 <div className="h-full bg-yellow-500" style={{width: `${getRankInfo(userStats.exp).progress}%`}}></div>
-                             </div>
-                             <div className="mt-2 text-xs text-slate-500 text-right">Next Star: {getRankInfo(userStats.exp).needed} EXP needed</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {avatarModalOpen && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold text-white">Select Avatar</h3>
-                        <button onClick={() => setAvatarModalOpen(false)}><X size={20} className="text-slate-400"/></button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-3">
-                        {HERO_AVATARS.map(hero => (
-                            <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-1 group">
-                                <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} alt={hero.label} className="w-16 h-16 rounded-full bg-slate-700 border-2 border-transparent group-hover:border-cyan-400 transition-all"/>
-                                <span className="text-[10px] text-slate-400 group-hover:text-white">{hero.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {historyModalOpen && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
-               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-md h-[70vh] flex flex-col relative">
-                  <button onClick={() => setHistoryModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20}/></button>
-                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><History /> 历史战绩</h3>
-                  <div className="flex-1 overflow-y-auto space-y-3">
-                      {battleHistory.length === 0 ? <div className="text-center text-slate-500 mt-10">暂无战斗记录</div> : battleHistory.map((record) => (
-                          <div key={record.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                              <div>
-                                  <div className="font-bold text-slate-200 text-sm">{record.unit}</div>
-                                  <div className="text-xs text-slate-500 mt-1 flex gap-2">
-                                      <span>{new Date(record.timestamp).toLocaleDateString()}</span>
-                                      <span className="text-slate-400">{record.mode}</span>
-                                  </div>
-                              </div>
-                              <div className="text-right">
-                                  <div className={`text-xl font-black ${record.rank === 'S' ? 'text-yellow-400' : record.rank === 'A' ? 'text-purple-400' : 'text-slate-400'}`}>{record.rank}</div>
-                                  <div className="text-xs text-slate-500">{record.score} pts</div>
-                              </div>
-                          </div>
-                      ))}
+      {/* MODALS */}
+      {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
+              <div className="bg-slate-800 w-full max-w-xs rounded-2xl p-6 border border-slate-600 shadow-2xl">
+                  <h3 className="text-lg font-bold text-white mb-2">{confirmModal.title}</h3>
+                  <p className="text-slate-300 text-sm mb-6">{confirmModal.message}</p>
+                  <div className="flex gap-3">
+                      <button onClick={() => setConfirmModal(prev => ({...prev, isOpen: false}))} className="flex-1 py-2.5 rounded-lg bg-slate-700 text-slate-300 font-bold text-sm">Cancel</button>
+                      <button onClick={confirmModal.onConfirm} className="flex-1 py-2.5 rounded-lg bg-cyan-600 text-white font-bold text-sm hover:bg-cyan-500">Confirm</button>
                   </div>
-               </div>
+              </div>
           </div>
       )}
 
-      {/* Shop / Admin Modal */}
-      {shopAdminOpen && (
-          <div className="absolute inset-0 z-50 bg-slate-900 flex flex-col animate-fade-in">
-               <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-md z-10">
-                   <h2 className="text-lg font-bold text-white flex items-center gap-2"><ShoppingBag className="text-yellow-400"/> 积分商城</h2>
-                   <button onClick={() => setShopAdminOpen(false)} className="bg-slate-700 p-2 rounded-lg text-slate-300"><X size={20}/></button>
+      {avatarModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setAvatarModalOpen(false)}>
+            <div className="bg-slate-800 w-full max-w-md rounded-2xl p-6 border border-slate-700" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-bold text-white mb-4">Select Avatar</h3>
+                <div className="grid grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto p-1">
+                    {HERO_AVATARS.map(hero => (
+                        <button key={hero.name} onClick={() => handleAvatarSelect(hero.name)} className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-700 transition-colors">
+                            <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} className="w-12 h-12 rounded-full bg-slate-900 border border-slate-600"/>
+                            <span className="text-[10px] text-slate-400">{hero.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {rankModalOpen && (
+           <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => setRankModalOpen(false)}>
+               <div className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                    <RankDisplay stats={userStats} />
+                    <div className="mt-6 text-center text-slate-400 text-xs">Tap outside to close</div>
                </div>
-               
-               <div className="flex-1 overflow-y-auto p-4 pb-24">
-                   <div className="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 p-4 rounded-xl border border-yellow-500/30 mb-6 flex justify-between items-center">
-                       <div>
-                           <div className="text-xs text-yellow-200 uppercase tracking-widest">Current Balance</div>
-                           <div className="text-3xl font-black text-yellow-400">{userStats.gold} <span className="text-sm font-normal text-yellow-200">Gold</span></div>
-                       </div>
-                       {!isAdminMode && <button onClick={() => setAdminLoginOpen(true)} className="text-xs text-slate-500 underline">Teacher Login</button>}
+           </div>
+      )}
+
+      {showRulesModal && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setShowRulesModal(false)}>
+              <div className="bg-slate-800 w-full max-w-md rounded-2xl p-6 border border-slate-700 relative" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={20}/></button>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Info size={20} className="text-cyan-400"/> Game Rules</h3>
+                  <div className="space-y-4 text-sm text-slate-300">
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Rank System</strong>每获得 5000 EXP 获得一颗星。积累星星提升段位。</div>
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Battle Rewards</strong>实战中正确率超过 50% 即可获得经验和金币。表现越好奖励越丰厚。</div>
+                      <div className="bg-slate-700/50 p-3 rounded-lg"><strong className="text-white block mb-1">Armory</strong>错题会被自动收集。在军械库中修复错题可以消除它们。</div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {repairModalOpen && activeRepairQuestion && (
+           <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setRepairModalOpen(false)}>
+               <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                   <div className="bg-purple-900/20 p-4 border-b border-purple-500/30 flex justify-between items-center">
+                       <h3 className="font-bold text-purple-200 flex items-center gap-2"><Wand2 size={18}/> 错题重铸</h3>
+                       <button onClick={() => setRepairModalOpen(false)}><X className="text-purple-400 hover:text-white"/></button>
                    </div>
-
-                   {isAdminMode && (
-                       <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6">
-                           <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Settings size={14}/> 商品管理 (Admin)</h3>
-                           <div className="space-y-3">
-                               <input value={newShopItem.name} onChange={(e) => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="Item Name" className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
-                               <div className="flex gap-2">
-                                   <input type="number" value={newShopItem.price} onChange={(e) => setNewShopItem({...newShopItem, price: parseInt(e.target.value) || 0})} placeholder="Price" className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
-                                   <div className="flex-1 overflow-x-auto flex gap-2 no-scrollbar bg-slate-900 border border-slate-600 rounded-lg p-1">
-                                       {SHOP_ICONS.map(icon => (
-                                           <button key={icon} onClick={() => setNewShopItem({...newShopItem, icon})} className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded ${newShopItem.icon === icon ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>{icon}</button>
-                                       ))}
-                                   </div>
-                               </div>
-                               <div className="flex gap-2">
-                                   <button onClick={handleSaveShopItem} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg text-sm font-bold">{editingItemId ? '保存修改' : '上架商品'}</button>
-                                   {editingItemId && <button onClick={cancelEdit} className="px-4 bg-slate-600 text-white rounded-lg text-sm">取消</button>}
-                               </div>
-                           </div>
-                       </div>
-                   )}
-
-                   <div className="grid grid-cols-2 gap-3">
-                       {shopItems.map(item => {
-                           const canAfford = userStats.gold >= (item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
-                           const realPrice = Math.floor(item.price * getLevelInfo(userStats.totalGoldEarned).discountMultiplier);
-                           return (
-                               <div key={item.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center relative group">
-                                   <div className="text-4xl mb-2">{item.icon}</div>
-                                   <h4 className="font-bold text-slate-200 text-sm mb-1">{item.name}</h4>
-                                   <div className="text-yellow-400 font-mono font-bold text-lg mb-3">{realPrice} <span className="text-[10px] text-slate-500">G</span></div>
-                                   
-                                   <button 
-                                      onClick={() => buyItem(item)}
-                                      disabled={!canAfford}
-                                      className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${canAfford ? 'bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg shadow-yellow-900/40' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
-                                   >
-                                       兑换
-                                   </button>
-                                   
-                                   {isAdminMode && (
-                                       <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                           <button onClick={() => startEditItem(item)} className="p-1 bg-blue-600 rounded text-white"><Edit2 size={12}/></button>
-                                           <button onClick={() => deleteShopItem(item.id)} className="p-1 bg-red-600 rounded text-white"><Trash2 size={12}/></button>
-                                       </div>
-                                   )}
-                               </div>
-                           )
-                       })}
-                   </div>
-
-                   <div className="mt-8">
-                       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 pb-1 border-b border-slate-700">兑换记录</h3>
-                       <div className="space-y-2">
-                           {userStats.redemptionHistory.length === 0 ? <div className="text-slate-600 text-xs italic text-center">暂无兑换记录</div> : userStats.redemptionHistory.map(record => (
-                               <div key={record.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-800/50">
-                                   <span className="text-slate-300">{record.itemName}</span>
-                                   <div className="flex items-center gap-3">
-                                       <span className="text-yellow-500 text-xs">-{record.cost} G</span>
-                                       <span className="text-slate-600 text-[10px]">{new Date(record.timestamp).toLocaleDateString()}</span>
-                                   </div>
-                               </div>
+                   <div className="p-6">
+                       <p className="text-lg text-white mb-6 font-medium leading-relaxed">{activeRepairQuestion.question}</p>
+                       <div className="space-y-3">
+                           {activeRepairQuestion.options.map((opt, idx) => (
+                               <button 
+                                key={idx}
+                                onClick={() => handleRepairAnswer(idx === activeRepairQuestion.correctAnswer)}
+                                className="w-full p-4 rounded-xl bg-slate-800 text-left text-slate-300 hover:bg-purple-900/40 hover:text-purple-200 hover:border-purple-500/50 border border-slate-700 transition-all active:scale-[0.98]"
+                               >
+                                   <span className="font-mono opacity-50 mr-2">{String.fromCharCode(65 + idx)}.</span> {opt}
+                               </button>
                            ))}
                        </div>
                    </div>
                </div>
-          </div>
+           </div>
       )}
 
-      {/* Admin Login Modal */}
-      {adminLoginOpen && (
-          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
-               <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-sm">
-                   <h3 className="text-xl font-bold text-white mb-4">教师管理登录</h3>
-                   <input 
-                      type="password"
-                      value={adminPasswordInput}
-                      onChange={(e) => setAdminPasswordInput(e.target.value)}
-                      placeholder="Enter Access Code"
-                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"
-                   />
-                   <div className="flex gap-3">
-                       <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-3 bg-slate-700 text-slate-300 rounded-xl font-bold">取消</button>
-                       <button onClick={handleAdminLoginSubmit} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-bold">验证</button>
-                   </div>
-               </div>
+      {vocabRepairModalOpen && activeRepairVocab && (
+          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setVocabRepairModalOpen(false)}>
+              <div className="w-full max-w-sm bg-slate-900 rounded-2xl p-8 border border-slate-700 text-center shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
+                  <h3 className="text-xl font-bold text-white mb-2">SPELL REPAIR</h3>
+                  <p className="text-cyan-400 mb-8 font-bold">{activeRepairVocab.chinese}</p>
+                  
+                  <input 
+                    className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl p-4 text-center text-white text-xl tracking-[0.2em] mb-6 outline-none focus:border-cyan-500 transition-colors uppercase font-mono"
+                    autoFocus
+                    value={userTypedAnswer}
+                    onChange={e => setUserTypedAnswer(e.target.value)}
+                    placeholder="TYPE HERE"
+                  />
+                  
+                  <button onClick={handleVocabRepairSubmit} className="w-full py-4 bg-cyan-600 rounded-xl text-white font-bold hover:bg-cyan-500 shadow-lg shadow-cyan-900/20 active:scale-95 transition-all">
+                      VERIFY
+                  </button>
+              </div>
           </div>
       )}
-
-        {repairModalOpen && activeRepairQuestion && (
-             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
-                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Wand2 className="text-purple-400"/> 错题重铸 (Repair)</h3>
-                     <p className="text-slate-300 mb-6 text-sm">{activeRepairQuestion.question}</p>
-                     <div className="space-y-3">
-                         {activeRepairQuestion.options.map((opt, i) => (
-                             <button key={i} onClick={() => handleRepairAnswer(i === activeRepairQuestion.correctAnswer)} className="w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-left text-slate-200 text-sm transition-colors border border-slate-600">
-                                 {String.fromCharCode(65 + i)}. {opt}
-                             </button>
-                         ))}
-                     </div>
-                     <button onClick={() => setRepairModalOpen(false)} className="mt-4 w-full py-2 text-slate-500 hover:text-slate-300 text-sm">放弃修复</button>
-                 </div>
-             </div>
-        )}
-
-        {vocabRepairModalOpen && activeRepairVocab && (
-             <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
-                 <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl p-6 shadow-2xl text-center">
-                     <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2 justify-center"><Wand2 className="text-blue-400"/> 拼写特训</h3>
-                     <p className="text-slate-400 mb-6 text-sm">请输入单词 "{activeRepairVocab.chinese}" 的英文</p>
-                     <input 
-                        value={userTypedAnswer} 
-                        onChange={e => setUserTypedAnswer(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center text-xl text-white font-mono mb-4 focus:border-blue-500 outline-none"
-                        placeholder="Type here..."
-                        autoFocus
-                     />
-                     <div className="flex gap-3">
-                         <button onClick={() => setVocabRepairModalOpen(false)} className="flex-1 py-2 text-slate-500 hover:text-slate-300">取消</button>
-                         <button onClick={handleVocabRepairSubmit} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">提交</button>
-                     </div>
-                 </div>
-             </div>
-        )}
     </Layout>
   );
 };

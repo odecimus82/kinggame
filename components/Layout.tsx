@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Sword, Book, Shield, User } from 'lucide-react';
+import { Home, Sword, Book, Shield, User, CircleDollarSign } from 'lucide-react';
 import { AppView } from '../types';
 
 interface LayoutProps {
