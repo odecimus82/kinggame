@@ -179,21 +179,23 @@ const speak = (text: string) => {
         return;
     }
     
-    // Always cancel previous speech
+    // Always cancel previous speech to prevent queue buildup
     window.speechSynthesis.cancel();
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
-    u.rate = 0.8;
+    u.rate = 0.9; // Slightly slower for clarity
     u.volume = 1.0;
 
-    // Simple robust voice selection
+    // WeChat/Mobile Webview Compatibility:
+    // Do NOT rely on intricate voice filtering logic as getVoices() is async and often empty initially.
+    // Just setting lang is often safer. 
+    // If voices are available, we try to pick a good one, but fallback gracefully.
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
-        // Try to find a good English voice
+        // Try to find a good English voice but don't force it if it breaks
         const preferredVoice = voices.find(v => v.lang === 'en-US' && !v.name.includes('Google')) || 
-                               voices.find(v => v.lang === 'en-US') || 
-                               voices.find(v => v.lang.startsWith('en'));
+                               voices.find(v => v.lang === 'en-US');
         if (preferredVoice) {
             u.voice = preferredVoice;
         }
@@ -445,8 +447,13 @@ const App: React.FC = () => {
   // Modals & UI
   const [repairModalOpen, setRepairModalOpen] = useState(false);
   const [activeRepairQuestion, setActiveRepairQuestion] = useState<ExamQuestion | null>(null);
+  
   const [vocabRepairModalOpen, setVocabRepairModalOpen] = useState(false);
   const [activeRepairVocab, setActiveRepairVocab] = useState<Word | null>(null);
+  const [repairStep, setRepairStep] = useState(1);
+  const [repairOptions, setRepairOptions] = useState<Word[]>([]);
+  const [maskedWord, setMaskedWord] = useState('');
+
   const [rankModalOpen, setRankModalOpen] = useState(false);
   const [shopAdminOpen, setShopAdminOpen] = useState(false);
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
@@ -903,6 +910,21 @@ const App: React.FC = () => {
       const word = VOCABULARY_DATA.find(w => w.id === wordId);
       if (word) {
           setActiveRepairVocab(word);
+          
+          // Prepare Step 1: Mask 60%
+          const len = word.english.length;
+          const numToHide = Math.ceil(len * 0.6);
+          const indices = Array.from({length: len}, (_, i) => i).sort(() => 0.5 - Math.random()).slice(0, numToHide);
+          const chars = word.english.split('');
+          indices.forEach(i => { if (chars[i] !== ' ') chars[i] = '_'; });
+          setMaskedWord(chars.join(' '));
+
+          // Prepare Step 2: Options
+          const distractors = VOCABULARY_DATA.filter(w => w.id !== wordId).sort(() => 0.5 - Math.random()).slice(0, 3);
+          const opts = [word, ...distractors].sort(() => 0.5 - Math.random());
+          setRepairOptions(opts);
+
+          setRepairStep(1);
           setVocabRepairModalOpen(true);
           setUserTypedAnswer('');
       }
@@ -910,34 +932,50 @@ const App: React.FC = () => {
 
   const handleVocabRepairSubmit = () => {
       if (!activeRepairVocab) return;
-      const correct = activeRepairVocab.english.toLowerCase().trim() === userTypedAnswer.toLowerCase().trim();
       
-      if (correct) {
-          setMistakes(prev => prev.filter(m => m.targetId !== activeRepairVocab.id));
-          
-          // Reward logic for repair
-          const bonusExp = 1;
-          const currentTotalRepairs = (userStats.totalRepairs || 0) + 1;
-          const bonusGold = currentTotalRepairs % 10 === 0 ? 1 : 0;
-          const rewardText = bonusGold > 0 ? `拼写正确! +${bonusExp} 经验 & +${bonusGold} 金币` : `拼写正确! +${bonusExp} 经验`;
-
-          setUserStats(prev => ({ 
-              ...prev, 
-              exp: prev.exp + bonusExp,
-              gold: prev.gold + bonusGold,
-              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + bonusGold,
-              dailyRepairCount: (prev.dailyRepairCount || 0) + 1,
-              totalRepairs: currentTotalRepairs
-          })); 
-
-          setFloatingReward({ id: Date.now(), text: rewardText });
-          setTimeout(() => setFloatingReward(null), 2000);
-
-          setVocabRepairModalOpen(false);
-      } else {
-          alert("拼写错误，请重试！");
+      // Step 1 Check
+      if (repairStep === 1) {
+          const correct = activeRepairVocab.english.toLowerCase().trim() === userTypedAnswer.toLowerCase().trim();
+          if (correct) {
+              setRepairStep(2);
+              setUserTypedAnswer(''); 
+          } else {
+              alert("拼写有误，请重试！");
+          }
+          return;
       }
   };
+
+  const handleVocabRepairSelect = (selectedId: string) => {
+      if (!activeRepairVocab) return;
+      if (repairStep === 2) {
+          if (selectedId === activeRepairVocab.id) {
+              // Complete Repair
+              setMistakes(prev => prev.filter(m => m.targetId !== activeRepairVocab.id));
+              
+              const bonusExp = 1;
+              const currentTotalRepairs = (userStats.totalRepairs || 0) + 1;
+              const bonusGold = currentTotalRepairs % 10 === 0 ? 1 : 0;
+              const rewardText = bonusGold > 0 ? `修复成功! +${bonusExp} 经验 & +${bonusGold} 金币` : `修复成功! +${bonusExp} 经验`;
+
+              setUserStats(prev => ({ 
+                  ...prev, 
+                  exp: prev.exp + bonusExp,
+                  gold: prev.gold + bonusGold,
+                  totalGoldEarned: (prev.totalGoldEarned || prev.gold) + bonusGold,
+                  dailyRepairCount: (prev.dailyRepairCount || 0) + 1,
+                  totalRepairs: currentTotalRepairs
+              })); 
+
+              setFloatingReward({ id: Date.now(), text: rewardText });
+              setTimeout(() => setFloatingReward(null), 2000);
+
+              setVocabRepairModalOpen(false);
+          } else {
+              alert("选择错误，请重试！");
+          }
+      }
+  }
 
   // --- Shop Logic ---
   const handleAdminLoginSubmit = () => {
@@ -1914,7 +1952,10 @@ const App: React.FC = () => {
            <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setRepairModalOpen(false)}>
                <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                    <div className="bg-purple-900/20 p-4 border-b border-purple-500/30 flex justify-between items-center">
-                       <h3 className="font-bold text-purple-200 flex items-center gap-2"><Wand2 size={18}/> 错题重铸</h3>
+                       <div className="flex items-center gap-3">
+                           <button onClick={() => setRepairModalOpen(false)} className="p-1 text-purple-400 hover:text-white bg-purple-900/30 rounded-lg"><ChevronLeft size={20}/></button>
+                           <h3 className="font-bold text-purple-200 flex items-center gap-2"><Wand2 size={18}/> 错题重铸</h3>
+                       </div>
                        <button onClick={() => setRepairModalOpen(false)}><X className="text-purple-400 hover:text-white"/></button>
                    </div>
                    <div className="p-6">
@@ -1937,22 +1978,59 @@ const App: React.FC = () => {
 
       {vocabRepairModalOpen && activeRepairVocab && (
           <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setVocabRepairModalOpen(false)}>
-              <div className="w-full max-w-sm bg-slate-900 rounded-2xl p-8 border border-slate-700 text-center shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
-                  <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
-                  <h3 className="text-xl font-bold text-white mb-2">拼写修复</h3>
-                  <p className="text-cyan-400 mb-8 font-bold">{activeRepairVocab.chinese}</p>
+              <div className="w-full max-w-sm bg-slate-900 rounded-2xl p-6 border border-slate-700 text-center shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                  {/* Progress Bar */}
+                  <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
+                      <div className="h-full bg-cyan-500 transition-all duration-300" style={{ width: repairStep === 1 ? '50%' : '100%' }}></div>
+                  </div>
                   
-                  <input 
-                    className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl p-4 text-center text-white text-xl tracking-[0.2em] mb-6 outline-none focus:border-cyan-500 transition-colors uppercase font-mono"
-                    autoFocus
-                    value={userTypedAnswer}
-                    onChange={e => setUserTypedAnswer(e.target.value)}
-                    placeholder="在此输入"
-                  />
-                  
-                  <button onClick={handleVocabRepairSubmit} className="w-full py-4 bg-cyan-600 rounded-xl text-white font-bold hover:bg-cyan-500 shadow-lg shadow-cyan-900/20 active:scale-95 transition-all">
-                      验证
-                  </button>
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6 mt-2">
+                      <button onClick={() => setVocabRepairModalOpen(false)} className="p-1 text-slate-400 hover:text-white bg-slate-800 rounded-lg"><ChevronLeft size={20}/></button>
+                      <h3 className="text-sm font-bold text-cyan-400 tracking-widest uppercase">
+                          {repairStep === 1 ? 'PHASE 1: 拼写重构' : 'PHASE 2: 语义链接'}
+                      </h3>
+                      <button onClick={() => setVocabRepairModalOpen(false)} className="p-1 text-slate-400 hover:text-white"><X size={20}/></button>
+                  </div>
+
+                  {repairStep === 1 && (
+                      <div className="animate-fade-in">
+                          <p className="text-slate-400 text-xs mb-2 font-mono tracking-wider">SPELL THE WORD</p>
+                          <div className="text-3xl font-mono font-black text-slate-600 mb-6 tracking-[0.2em]">{maskedWord}</div>
+                          
+                          <input 
+                            className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl p-4 text-center text-white text-xl tracking-[0.1em] mb-6 outline-none focus:border-cyan-500 transition-colors font-mono"
+                            autoFocus
+                            value={userTypedAnswer}
+                            onChange={e => setUserTypedAnswer(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleVocabRepairSubmit()}
+                            placeholder="输入完整单词"
+                            autoComplete="off"
+                          />
+                          
+                          <button onClick={handleVocabRepairSubmit} className="w-full py-4 bg-cyan-600 rounded-xl text-white font-bold hover:bg-cyan-500 shadow-lg shadow-cyan-900/20 active:scale-95 transition-all">
+                              下一步
+                          </button>
+                      </div>
+                  )}
+
+                  {repairStep === 2 && (
+                      <div className="animate-fade-in">
+                          <p className="text-slate-400 text-xs mb-2 font-mono tracking-wider">SELECT MEANING</p>
+                          <h2 className="text-2xl font-bold text-white mb-6">{activeRepairVocab.chinese}</h2>
+                          <div className="space-y-3">
+                              {repairOptions.map((opt) => (
+                                  <button 
+                                      key={opt.id}
+                                      onClick={() => handleVocabRepairSelect(opt.id)}
+                                      className="w-full p-4 rounded-xl bg-slate-800 border-2 border-slate-700 hover:border-cyan-500 hover:bg-slate-700/50 text-white font-bold text-lg transition-all active:scale-95"
+                                  >
+                                      {opt.english}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  )}
               </div>
           </div>
       )}
