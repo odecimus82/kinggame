@@ -43,9 +43,11 @@ export interface RedemptionRecord {
 
 export interface UserStats {
   username: string; // Added: For login identification
-  level: number;
-  exp: number; // Total Stars equivalent
-  gold: number;
+  level: number; // Now calculated based on totalGoldEarned
+  exp: number; // Total Stars equivalent (Rank)
+  gold: number; // Current spendable gold
+  totalGoldEarned: number; // Added: Lifetime gold accumulated (determines Level)
+  avatar: string; // Added: Avatar URL
   rankTitle: string; // "荣耀黄金 III"
   matchesPlayed: number;
   correctCount: number;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare } from 'lucide-react';
+import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare, Info, Percent } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
 import { VOCABULARY_DATA, EXAM_DATA, UNITS, getWordsByUnit, getExamQuestionsByUnit, LIBRARY_STRUCTURE } from './services/vocabData';
@@ -40,9 +40,34 @@ const SHOP_ICONS = [
     '📚', '🏖️', '🚲', '🎸', '⏰'
 ];
 
+// --- Hero Avatars (HoK Inspired Seeds) ---
+const HERO_AVATARS = [
+    { name: 'Arthur', label: '亚瑟' },
+    { name: 'Angela', label: '安琪拉' },
+    { name: 'HouYi', label: '后羿' },
+    { name: 'Daji', label: '妲己' },
+    { name: 'Libai', label: '李白' },
+    { name: 'HanXin', label: '韩信' },
+    { name: 'Mulan', label: '花木兰' },
+    { name: 'LuBu', label: '吕布' },
+    { name: 'DiaoChan', label: '貂蝉' },
+    { name: 'ZhugeLiang', label: '诸葛亮' },
+    { name: 'SunWukong', label: '孙悟空' },
+    { name: 'Yao', label: '瑶' },
+    { name: 'MarcoPolo', label: '马可波罗' },
+    { name: 'Kai', label: '铠' },
+    { name: 'Luna', label: '露娜' },
+    { name: 'Shouyue', label: '百里守约' },
+    { name: 'GongsunLi', label: '公孙离' },
+    { name: 'DaQiao', label: '大乔' },
+    { name: 'XiaoQiao', label: '小乔' },
+    { name: 'ChengYaojin', label: '程咬金' },
+];
+
 // --- Rank System Logic (Honor of Kings Style) ---
 // UPDATED: 1 Star = 5000 EXP.
 const EXP_PER_STAR = 5000;
+const GOLD_PER_LEVEL = 5000;
 
 const RANK_CONFIG = [
     // Bronze: 3 sub-tiers * 3 stars = 9 stars. Max Exp before Silver = 9 * 5000 = 45000
@@ -118,6 +143,25 @@ const getRankInfo = (exp: number) => {
         maxStars: currentConfig.starsPerSub,
         config: currentConfig,
         currentStarExp: currentStarExp
+    };
+};
+
+const getLevelInfo = (totalGold: number) => {
+    // Level 1 starts at 0.
+    // Level 2 needs 5000 total gold earned.
+    const level = Math.floor(totalGold / GOLD_PER_LEVEL) + 1;
+    // Discount: 1% per level above 1. Max 20%.
+    // Level 1 = 0%, Level 2 = 1% ... Level 21 = 20%.
+    const discountPercent = Math.min(Math.max(level - 1, 0), 20);
+    const nextLevelGold = level * GOLD_PER_LEVEL;
+    const progress = ((totalGold % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
+    
+    return {
+        level,
+        discountPercent,
+        discountMultiplier: 1 - (discountPercent / 100),
+        nextLevelGold,
+        progress
     };
 };
 
@@ -303,7 +347,19 @@ const App: React.FC = () => {
   const [flashcardMode, setFlashcardMode] = useState(false);
   const [userStats, setUserStats] = useState<UserStats>({
     username: 'Guest',
-    level: 1, exp: 0, gold: 100, rankTitle: Rank.BRONZE, matchesPlayed: 0, correctCount: 0, loginStreak: 1, studyMinutes: 0, unlockedAchievements: [], inventory: [], redemptionHistory: []
+    level: 1, 
+    exp: 0, 
+    gold: 100, 
+    totalGoldEarned: 100, // Initial gold counts as earned
+    rankTitle: Rank.BRONZE, 
+    matchesPlayed: 0, 
+    correctCount: 0, 
+    loginStreak: 1, 
+    studyMinutes: 0, 
+    unlockedAchievements: [], 
+    inventory: [], 
+    redemptionHistory: [],
+    avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur` // Default avatar
   });
   const [mistakes, setMistakes] = useState<WrongAnswer[]>([]);
   const [battleHistory, setBattleHistory] = useState<BattleRecord[]>([]);
@@ -336,6 +392,8 @@ const App: React.FC = () => {
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false); // Avatar Selection Modal
+  const [levelRulesOpen, setLevelRulesOpen] = useState(false); // Level Rules Collapsible
   
   // Global Confirm Modal State (Replaces window.confirm)
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
@@ -389,7 +447,13 @@ const App: React.FC = () => {
       if (savedData) {
           try {
             const parsed = JSON.parse(savedData);
-            setUserStats(parsed.stats);
+            // Ensure backwards compatibility for totalGoldEarned and avatar
+            const loadedStats = {
+                ...parsed.stats,
+                totalGoldEarned: parsed.stats.totalGoldEarned ?? parsed.stats.gold, // Fallback to current gold
+                avatar: parsed.stats.avatar ?? `https://api.dicebear.com/7.x/adventurer/svg?seed=Arthur`
+            };
+            setUserStats(loadedStats);
             setBattleHistory(parsed.history);
             setMistakes(parsed.mistakes);
             setMasteredWords(new Set(parsed.mastered));
@@ -414,10 +478,12 @@ const App: React.FC = () => {
   const handleCheckIn = () => {
       const today = new Date().toISOString().split('T')[0];
       if (userStats.lastSignInDate !== today) {
+          const goldReward = 50;
           setUserStats(prev => ({
               ...prev,
               lastSignInDate: today,
-              gold: prev.gold + 50,
+              gold: prev.gold + goldReward,
+              totalGoldEarned: (prev.totalGoldEarned || prev.gold) + goldReward, // Track lifetime gold
               exp: prev.exp + 20,
               loginStreak: prev.loginStreak + 1
           }));
@@ -435,10 +501,19 @@ const App: React.FC = () => {
       return userStats.lastSignInDate === today;
   };
 
+  // Level Update Effect
   useEffect(() => {
+    // 1. Rank Update
     const { title } = getRankInfo(userStats.exp);
-    if (title !== userStats.rankTitle) {
-        setUserStats(prev => ({...prev, rankTitle: title}));
+    // 2. Level Update (Based on Total Gold)
+    const { level } = getLevelInfo(userStats.totalGoldEarned);
+
+    if (title !== userStats.rankTitle || level !== userStats.level) {
+        setUserStats(prev => ({
+            ...prev, 
+            rankTitle: title,
+            level: level
+        }));
     }
     
     ACHIEVEMENTS.forEach(ach => {
@@ -446,7 +521,7 @@ const App: React.FC = () => {
             setUserStats(prev => ({...prev, unlockedAchievements: [...prev.unlockedAchievements, ach.id]}));
         }
     });
-  }, [userStats.exp, userStats.matchesPlayed, userStats.studyMinutes, userStats.gold]);
+  }, [userStats.exp, userStats.matchesPlayed, userStats.studyMinutes, userStats.gold, userStats.totalGoldEarned]);
 
   useEffect(() => {
       const timer = setInterval(() => {
@@ -627,16 +702,20 @@ const App: React.FC = () => {
     setBattleHistory(prev => [newRecord, ...prev].slice(0, 20));
 
     const expGained = finalScore;
+    const goldGained = Math.floor(finalScore / 2);
     
     // Level Logic: 500 EXP per level
     setUserStats(prev => {
         const newExp = prev.exp + expGained;
-        const newLevel = Math.floor(newExp / 500) + 1;
+        const currentTotalGold = prev.totalGoldEarned || prev.gold; // Handle legacy
+        const newTotalGold = currentTotalGold + goldGained;
+        
+        // Level is recalculated in useEffect based on totalGoldEarned
         return {
             ...prev,
             exp: newExp,
-            level: newLevel,
-            gold: prev.gold + Math.floor(finalScore / 2),
+            gold: prev.gold + goldGained,
+            totalGoldEarned: newTotalGold,
             matchesPlayed: prev.matchesPlayed + 1,
             correctCount: prev.correctCount + (finalScore / 10)
         };
@@ -700,21 +779,24 @@ const App: React.FC = () => {
   };
 
   const buyItem = (item: ShopItem) => {
-      if (userStats.gold >= item.price) {
+      const { discountMultiplier } = getLevelInfo(userStats.totalGoldEarned);
+      const finalPrice = Math.floor(item.price * discountMultiplier);
+
+      if (userStats.gold >= finalPrice) {
           setConfirmModal({
               isOpen: true,
               title: '确认兑换',
-              message: `确定花费 ${item.price} 金币兑换 "${item.name}" 吗?`,
+              message: `确定花费 ${finalPrice} 金币兑换 "${item.name}" 吗?`,
               onConfirm: () => {
                   const newRecord: RedemptionRecord = {
                       id: Date.now().toString(),
                       itemName: item.name,
-                      cost: item.price,
+                      cost: finalPrice,
                       timestamp: Date.now()
                   };
                   setUserStats(prev => ({
                       ...prev,
-                      gold: prev.gold - item.price,
+                      gold: prev.gold - finalPrice,
                       inventory: [...prev.inventory, item.id],
                       redemptionHistory: [newRecord, ...prev.redemptionHistory]
                   }));
@@ -779,6 +861,15 @@ const App: React.FC = () => {
       });
   };
 
+  const handleAvatarSelect = (seedName: string) => {
+      const newAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seedName}`;
+      setUserStats(prev => ({
+          ...prev,
+          avatar: newAvatarUrl
+      }));
+      setAvatarModalOpen(false);
+  };
+
   const handleLogout = () => {
       setConfirmModal({
           isOpen: true,
@@ -839,7 +930,18 @@ const App: React.FC = () => {
   const renderLobby = () => (
     <div className="p-4 space-y-6 animate-fade-in pb-24 h-full overflow-y-auto">
       <header className="flex justify-between items-center">
-        <div><h2 className="text-xl font-bold text-white">Hello, {userStats.username}</h2><p className="text-slate-400 text-xs">广州高中英语</p></div>
+        <div className="flex items-center gap-3">
+            <button onClick={() => setAvatarModalOpen(true)} className="relative group">
+                <img src={userStats.avatar} alt="Avatar" className="w-12 h-12 rounded-full border-2 border-slate-700 bg-slate-800 group-hover:border-cyan-400 transition-colors" />
+                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Edit2 size={16} className="text-white"/>
+                </div>
+            </button>
+            <div>
+                <h2 className="text-xl font-bold text-white leading-tight">Hello, {userStats.username}</h2>
+                <p className="text-slate-400 text-xs">Level {userStats.level} · 广州高中英语</p>
+            </div>
+        </div>
         <div className="flex items-center gap-2">
             {!isCheckedInToday() && (
                 <button onClick={handleCheckIn} className="animate-bounce mr-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
@@ -1117,24 +1219,66 @@ const App: React.FC = () => {
     </div>
   );
 
-  const renderProfile = () => (
+  const renderProfile = () => {
+    const { discountPercent, nextLevelGold } = getLevelInfo(userStats.totalGoldEarned);
+    const goldProgress = ((userStats.totalGoldEarned % GOLD_PER_LEVEL) / GOLD_PER_LEVEL) * 100;
+
+    return (
     <div className="p-4 h-full overflow-y-auto pb-24 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-slate-700 to-slate-600 flex items-center justify-center text-2xl shadow-lg border border-slate-500/30">
-            👤
-            </div>
+            <button onClick={() => setAvatarModalOpen(true)} className="relative group">
+                <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-600 group-hover:border-cyan-400 overflow-hidden transition-all shadow-lg">
+                    <img src={userStats.avatar} alt="User Avatar" className="w-full h-full object-cover" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-slate-700 p-1 rounded-full border border-slate-500 text-slate-300">
+                    <Edit2 size={12}/>
+                </div>
+            </button>
             <div>
-            <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
-            <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-300">Level {userStats.level}</span>
-                <span className="text-xs text-slate-500">UID: {Date.now().toString().slice(-6)}</span>
-            </div>
+                <h2 className="text-2xl font-bold text-white">{userStats.username}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs bg-gradient-to-r from-blue-600 to-cyan-500 px-2 py-0.5 rounded text-white font-bold">Lv.{userStats.level}</span>
+                    <span className="text-xs text-slate-500">UID: {Date.now().toString().slice(-6)}</span>
+                </div>
             </div>
         </div>
         <button onClick={handleLogout} className="bg-slate-800 p-2 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-700 transition-colors">
             <LogOut size={20} />
         </button>
+      </div>
+
+      {/* Level & Discount Rules Section */}
+      <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-6">
+          <button onClick={() => setLevelRulesOpen(!levelRulesOpen)} className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg text-white font-black italic">
+                      {userStats.level}
+                  </div>
+                  <div className="text-left">
+                      <p className="text-sm font-bold text-white flex items-center gap-2">当前等级权益 <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded border border-yellow-500/30">折扣 -{discountPercent}%</span></p>
+                      <div className="w-32 h-1.5 bg-slate-900 rounded-full mt-1.5 overflow-hidden">
+                          <div className="h-full bg-yellow-500 transition-all duration-500" style={{ width: `${goldProgress}%` }}></div>
+                      </div>
+                  </div>
+              </div>
+              <div className="text-slate-400">
+                  {levelRulesOpen ? <ChevronUp size={20}/> : <Info size={20}/>}
+              </div>
+          </button>
+          
+          {levelRulesOpen && (
+              <div className="px-4 pb-4 pt-0 text-xs text-slate-400 bg-slate-800/50 border-t border-slate-700/50 animate-fade-in">
+                  <div className="mt-3 space-y-2">
+                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>每累计获得 <span className="text-yellow-400 font-mono">5000</span> 金币，等级提升 1 级。</p>
+                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>每提升 1 级，商城兑换折扣增加 <span className="text-cyan-400 font-mono">1%</span>。</p>
+                      <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>最高折扣上限为 <span className="text-red-400 font-mono">20%</span> (Lv.21)。</p>
+                      <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-700 text-center font-mono text-slate-500">
+                          当前累计金币: <span className="text-white">{userStats.totalGoldEarned}</span> / 下一级需: <span className="text-white">{nextLevelGold}</span>
+                      </div>
+                  </div>
+              </div>
+          )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
@@ -1185,7 +1329,8 @@ const App: React.FC = () => {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <Layout currentView={currentView} onChangeView={setCurrentView}>
@@ -1233,6 +1378,32 @@ const App: React.FC = () => {
              </div>
            </div>
         </div>
+      )}
+
+      {/* Avatar Selection Modal */}
+      {avatarModalOpen && (
+          <div className="absolute inset-0 z-[100] bg-slate-900/95 backdrop-blur-md p-6 flex flex-col animate-fade-in">
+              <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2"><User size={24} className="text-cyan-400"/> 更换英雄头像</h3>
+                  <button onClick={() => setAvatarModalOpen(false)} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white"><X size={20}/></button>
+              </div>
+              <div className="flex-1 overflow-y-auto grid grid-cols-3 gap-4 pb-20">
+                  {HERO_AVATARS.map((hero) => (
+                      <button 
+                        key={hero.name} 
+                        onClick={() => handleAvatarSelect(hero.name)}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${userStats.avatar.includes(hero.name) ? 'bg-cyan-500/20 border-cyan-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
+                      >
+                          <img 
+                            src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${hero.name}`} 
+                            alt={hero.name} 
+                            className="w-16 h-16 rounded-full bg-slate-900 shadow-md"
+                          />
+                          <span className={`text-xs font-bold ${userStats.avatar.includes(hero.name) ? 'text-cyan-400' : 'text-slate-400'}`}>{hero.label}</span>
+                      </button>
+                  ))}
+              </div>
+          </div>
       )}
 
       {/* History Modal */}
@@ -1339,7 +1510,11 @@ const App: React.FC = () => {
 
                {/* Shop Items Grid */}
                <div className="grid grid-cols-2 gap-3">
-                  {shopItems.map(item => (
+                  {shopItems.map(item => {
+                     const { discountMultiplier, discountPercent } = getLevelInfo(userStats.totalGoldEarned);
+                     const discountedPrice = Math.floor(item.price * discountMultiplier);
+                     
+                     return (
                      <div key={item.id} className={`bg-slate-800 p-4 rounded-xl border transition-all relative group overflow-hidden ${editingItemId === item.id ? 'border-cyan-500 ring-1 ring-cyan-500/50' : 'border-slate-700'}`}>
                         {isAdminMode && (
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -1352,11 +1527,18 @@ const App: React.FC = () => {
                            <h4 className="font-bold text-white text-sm line-clamp-1">{item.name}</h4>
                            <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
                         </div>
-                        <button onClick={() => buyItem(item)} disabled={isAdminMode} className={`w-full font-bold py-2 rounded-lg text-xs shadow-lg active:scale-95 transition-all ${isAdminMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 shadow-yellow-900/20'}`}>
-                           {item.price} G 兑换
+                        <button onClick={() => buyItem(item)} disabled={isAdminMode} className={`w-full font-bold py-2 rounded-lg text-xs shadow-lg active:scale-95 transition-all flex flex-col items-center justify-center ${isAdminMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 shadow-yellow-900/20'}`}>
+                           {discountPercent > 0 ? (
+                               <>
+                                <span className="line-through text-[10px] opacity-60 text-slate-800">{item.price} G</span>
+                                <span className="flex items-center gap-1">{discountedPrice} G <span className="bg-red-500 text-white text-[8px] px-1 rounded">-{discountPercent}%</span></span>
+                               </>
+                           ) : (
+                               <span>{item.price} G 兑换</span>
+                           )}
                         </button>
                      </div>
-                  ))}
+                  )})}
                </div>
 
                {/* Redemption History */}
