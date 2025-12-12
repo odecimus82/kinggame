@@ -1742,7 +1742,7 @@ const App: React.FC = () => {
                    >
                        <div className="flex items-center gap-2">
                            <Map size={18} className="text-blue-400"/>
-                           <span className="text-white font-bold text-sm">S1 赛季：必修第一册 (2024 Fall)</span>
+                           <span className="text-white font-bold text-sm">S1 赛季：必修第一册 (2025 Fall)</span>
                        </div>
                        {isSeasonExpanded ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
                    </button>
