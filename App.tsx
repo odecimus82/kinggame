@@ -1221,7 +1221,7 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
            <div className="bg-slate-800 w-full max-w-xs p-6 rounded-2xl border border-slate-700 shadow-2xl">
               <h3 className="text-lg font-bold text-white mb-4 text-center">管理员验证</h3>
-              <input type="password" value={adminPasswordInput} onChange={e => setAdminPasswordInput(e.target.value)} placeholder="请输入密码 (98765432)" className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"/>
+              <input type="password" value={adminPasswordInput} onChange={e => setAdminPasswordInput(e.target.value)} placeholder="请输入管理员密码" className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-cyan-500"/>
               <div className="flex gap-3">
                  <button onClick={() => setAdminLoginOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 text-slate-300 font-bold text-sm">取消</button>
                  <button onClick={handleAdminLoginSubmit} className="flex-1 py-2.5 rounded-xl bg-cyan-600 text-white font-bold text-sm shadow-lg shadow-cyan-900/30">验证</button>
