@@ -306,6 +306,8 @@ const App: React.FC = () => {
   const [battleMode, setBattleMode] = useState<'VOCAB' | 'EXAM' | 'DICTATION'>('VOCAB');
   const [userTypedAnswer, setUserTypedAnswer] = useState('');
   const [currentWordMask, setCurrentWordMask] = useState('');
+  // New state to hold shuffled options for current question, preventing re-render shuffle loop
+  const [currentVocabOptions, setCurrentVocabOptions] = useState<Word[]>([]);
   
   // Modals & UI
   const [repairModalOpen, setRepairModalOpen] = useState(false);
@@ -466,6 +468,17 @@ const App: React.FC = () => {
       setMissionModalOpen(true);
   };
 
+  // NEW Helper to safely generate options
+  const generateVocabOptions = (targetWord: Word) => {
+     if (!targetWord) return;
+     const otherWords = VOCABULARY_DATA.filter(w => w.id !== targetWord.id);
+     // If not enough words, just take what we have
+     const count = Math.min(otherWords.length, 3);
+     const distractors = otherWords.sort(() => 0.5 - Math.random()).slice(0, count);
+     const options = [targetWord, ...distractors].sort(() => 0.5 - Math.random());
+     setCurrentVocabOptions(options);
+  };
+
   const startQuiz = (mode: 'VOCAB' | 'EXAM' | 'DICTATION') => {
     setMissionModalOpen(false);
     const unit = pendingUnitStart;
@@ -478,6 +491,10 @@ const App: React.FC = () => {
         const words = getWordsByUnit(unit);
         if (words.length === 0) { alert("该单元暂无词汇数据"); return; }
         questions = [...words].sort(() => 0.5 - Math.random());
+        // Generate options for the FIRST question immediately to avoid null state in render
+        if (questions.length > 0) {
+            generateVocabOptions(questions[0] as Word);
+        }
     } else if (mode === 'DICTATION') {
         const words = getWordsByUnit(unit);
         if (words.length === 0) { alert("该单元暂无词汇数据"); return; }
@@ -552,10 +569,16 @@ const App: React.FC = () => {
 
   const nextQuestion = () => {
       if (currentQuestionIndex < quizQuestions.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
+        const nextIdx = currentQuestionIndex + 1;
+        setCurrentQuestionIndex(nextIdx);
         setAnswerStatus('IDLE');
         setUserTypedAnswer('');
         setCurrentWordMask('');
+        
+        // Prepare options for the NEXT question if in vocab mode
+        if (battleMode === 'VOCAB') {
+            generateVocabOptions(quizQuestions[nextIdx] as Word);
+        }
       } else {
         finishQuiz(quizScore); 
       }
@@ -962,25 +985,14 @@ const App: React.FC = () => {
             </div>
 
             <div className="space-y-3 mb-4 w-full">
-                {isVocab && (() => {
-                        const w = currentItem as Word;
-                        // useMemo to prevent re-shuffling on every render/state update
-                        const currentOptions = React.useMemo(() => {
-                           // 1. Get other words for distractors
-                           const otherWords = VOCABULARY_DATA.filter(wd => wd.id !== w.id);
-                           // 2. Randomly pick 3 distractors
-                           const distractors = otherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
-                           // 3. Combine with correct answer and shuffle the final list
-                           return [w, ...distractors].sort(() => 0.5 - Math.random());
-                        }, [w.id]); // Recalculate only when question changes
-
-                        return currentOptions.map((opt) => (
-                            <button key={opt.id} onClick={() => handleAnswer(opt.id === w.id, w.id)} disabled={answerStatus !== 'IDLE'} className={`w-full p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${answerStatus === 'IDLE' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : opt.id === w.id ? 'bg-green-500/20 border-green-500 text-green-100' : 'bg-slate-800 border-slate-700 opacity-50'}`}>
-                                <span className="font-bold mr-2 text-sm opacity-50">{opt.partOfSpeech}</span>{opt.chinese}
-                                {answerStatus !== 'IDLE' && opt.id === w.id && <CheckCircle size={20} className="float-right text-green-400" />}
-                            </button>
-                        ));
-                })()}
+                {isVocab && (
+                    currentVocabOptions.map((opt) => (
+                        <button key={opt.id} onClick={() => handleAnswer(opt.id === (currentItem as Word).id, (currentItem as Word).id)} disabled={answerStatus !== 'IDLE'} className={`w-full p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${answerStatus === 'IDLE' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200' : opt.id === (currentItem as Word).id ? 'bg-green-500/20 border-green-500 text-green-100' : 'bg-slate-800 border-slate-700 opacity-50'}`}>
+                            <span className="font-bold mr-2 text-sm opacity-50">{opt.partOfSpeech}</span>{opt.chinese}
+                            {answerStatus !== 'IDLE' && opt.id === (currentItem as Word).id && <CheckCircle size={20} className="float-right text-green-400" />}
+                        </button>
+                    ))
+                )}
 
                 {isDictation && (answerStatus === 'IDLE' ? (<button onClick={() => handleDictationSubmit(currentItem as Word)} disabled={!userTypedAnswer} className={`w-full py-4 rounded-xl font-bold tracking-widest transition-all ${userTypedAnswer ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>DEPLOY ANSWER</button>) : (<button onClick={nextQuestion} className="w-full py-4 rounded-xl font-bold tracking-widest bg-slate-700 hover:bg-slate-600 text-white animate-pulse">CONTINUE &gt;&gt;</button>))}
 
