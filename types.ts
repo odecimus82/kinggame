@@ -55,6 +55,7 @@ export interface UserStats {
   inventory: string[]; 
   redemptionHistory: RedemptionRecord[]; 
   lastSignInDate?: string; // Added: YYYY-MM-DD for daily check-in
+  shopItems?: ShopItem[]; // Added: Custom shop items specific to this user
 }
 
 export interface WrongAnswer {

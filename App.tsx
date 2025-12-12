@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck } from 'lucide-react';
+import { Play, RotateCcw, Volume2, Trophy, Flame, ChevronRight, XCircle, CheckCircle, Lock, Star, ChevronLeft, Shield, Sword, Book, User, Mic, ChevronDown, Eye, EyeOff, Clock, Calendar, Zap, Target, TrendingUp, Map, Layers, LayoutGrid, X, AlertTriangle, GraduationCap, RefreshCw, Wand2, Headphones, Keyboard, Award, ChevronUp, ShoppingBag, Plus, Trash2, Gift, History, Settings, LogOut, ArrowRight, Crown, Quote, CalendarCheck, Edit2, Save, XSquare } from 'lucide-react';
 import Layout from './components/Layout';
 import { AppView, Rank, UserStats, Word, WrongAnswer, BattleRecord, ExamQuestion, ShopItem, RedemptionRecord } from './types';
 import { VOCABULARY_DATA, EXAM_DATA, UNITS, getWordsByUnit, getExamQuestionsByUnit, LIBRARY_STRUCTURE } from './services/vocabData';
@@ -30,6 +30,14 @@ const DEFAULT_SHOP_ITEMS: ShopItem[] = [
     { id: 'item_2', name: '游戏时间 1h', price: 300, icon: '🎮', description: '兑换 1 小时手机游戏时间' },
     { id: 'item_3', name: '美味零食', price: 100, icon: '🍟', description: '兑换任意 10 元内零食' },
     { id: 'item_4', name: '奶茶一杯', price: 200, icon: '🥤', description: '兑换下午茶奶茶一杯' },
+];
+
+// --- Shop Icon Presets ---
+const SHOP_ICONS = [
+    '🎫', '🎮', '🍟', '🥤', '🎁', 
+    '🍦', '🍔', '🍕', '🎟️', '⚽', 
+    '🏀', '🎨', '📱', '💻', '🎧', 
+    '📚', '🏖️', '🚲', '🎸', '⏰'
 ];
 
 // --- Rank System Logic (Honor of Kings Style) ---
@@ -338,18 +346,19 @@ const App: React.FC = () => {
   const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
   const [shopItems, setShopItems] = useState<ShopItem[]>(DEFAULT_SHOP_ITEMS);
   const [newShopItem, setNewShopItem] = useState({ name: '', price: 100, icon: '🎁' });
+  const [editingItemId, setEditingItemId] = useState<string | null>(null); // Track item being edited
   
   // Daily Quote State
   const [currentQuote, setCurrentQuote] = useState(DAILY_QUOTES[0]);
 
   // --- Persistence & Stats Logic ---
   
-  const saveProgress = (stats: UserStats, history: BattleRecord[], mistakesList: WrongAnswer[], mastered: Set<string>) => {
+  const saveProgress = (stats: UserStats, history: BattleRecord[], mistakesList: WrongAnswer[], mastered: Set<string>, currentShopItems: ShopItem[]) => {
       // CRITICAL FIX: Only save if we are not Guest and Data IS LOADED
       if (stats.username === 'Guest') return;
       
       const data = {
-          stats,
+          stats: { ...stats, shopItems: currentShopItems }, // Persist Shop Items in User Stats
           history,
           mistakes: mistakesList,
           mastered: Array.from(mastered)
@@ -361,9 +370,9 @@ const App: React.FC = () => {
   useEffect(() => {
       // CRITICAL FIX: Add isDataLoaded check
       if (currentView !== AppView.LOGIN && isDataLoaded) {
-        saveProgress(userStats, battleHistory, mistakes, masteredWords);
+        saveProgress(userStats, battleHistory, mistakes, masteredWords, shopItems);
       }
-  }, [userStats, battleHistory, mistakes, masteredWords, currentView, isDataLoaded]);
+  }, [userStats, battleHistory, mistakes, masteredWords, currentView, isDataLoaded, shopItems]);
 
   // Update Daily Quote
   useEffect(() => {
@@ -384,13 +393,17 @@ const App: React.FC = () => {
             setBattleHistory(parsed.history);
             setMistakes(parsed.mistakes);
             setMasteredWords(new Set(parsed.mastered));
+            // Load user-specific shop items, fallback to default if new user or legacy data
+            setShopItems(parsed.stats.shopItems || DEFAULT_SHOP_ITEMS);
             alert(`欢迎回来，${username}！档案读取成功。`);
           } catch (e) {
             console.error("Save file corrupted", e);
             setUserStats(prev => ({ ...prev, username }));
+            setShopItems(DEFAULT_SHOP_ITEMS);
           }
       } else {
           setUserStats(prev => ({ ...prev, username }));
+          setShopItems(DEFAULT_SHOP_ITEMS);
           alert(`新兵报到！欢迎加入知识荣耀，${username}。`);
       }
       setIsDataLoaded(true); // CRITICAL FIX: Mark data as loaded to enable saving
@@ -715,11 +728,39 @@ const App: React.FC = () => {
       }
   };
 
-  const addShopItem = () => {
-      if (newShopItem.name && newShopItem.price > 0) {
-          setShopItems(prev => [...prev, { ...newShopItem, id: `custom_${Date.now()}`, description: '自定义奖励' }]);
-          setNewShopItem({ name: '', price: 100, icon: '🎁' });
+  const handleSaveShopItem = () => {
+      if (!newShopItem.name || newShopItem.price <= 0) {
+          alert("请输入有效的名称和价格");
+          return;
       }
+
+      if (editingItemId) {
+          // Edit Mode
+          setShopItems(prev => prev.map(item => 
+              item.id === editingItemId 
+                  ? { ...item, name: newShopItem.name, price: newShopItem.price, icon: newShopItem.icon }
+                  : item
+          ));
+          setEditingItemId(null);
+      } else {
+          // Add Mode
+          setShopItems(prev => [...prev, { 
+              ...newShopItem, 
+              id: `custom_${Date.now()}`, 
+              description: '自定义奖励' 
+          }]);
+      }
+      setNewShopItem({ name: '', price: 100, icon: '🎁' });
+  };
+
+  const startEditItem = (item: ShopItem) => {
+      setNewShopItem({ name: item.name, price: item.price, icon: item.icon });
+      setEditingItemId(item.id);
+  };
+
+  const cancelEdit = () => {
+      setNewShopItem({ name: '', price: 100, icon: '🎁' });
+      setEditingItemId(null);
   };
 
   const deleteShopItem = (id: string) => {
@@ -729,6 +770,10 @@ const App: React.FC = () => {
           message: '确定要下架此商品吗？',
           onConfirm: () => {
               setShopItems(prev => prev.filter(item => item.id !== id));
+              // Check if we were editing the deleted item
+              if (editingItemId === id) {
+                  cancelEdit();
+              }
               setConfirmModal(prev => ({ ...prev, isOpen: false }));
           }
       });
@@ -744,6 +789,7 @@ const App: React.FC = () => {
               setLoginInput('');
               setIsAdminMode(false);
               setIsDataLoaded(false); // Reset loaded flag
+              setShopItems(DEFAULT_SHOP_ITEMS); // Reset shop to defaults for safety
               setConfirmModal(prev => ({ ...prev, isOpen: false }));
           }
       });
@@ -1251,33 +1297,62 @@ const App: React.FC = () => {
             </div>
             
             <div className="p-4 space-y-6 pb-20">
-               {/* Add Item Section (Admin Only) */}
+               {/* Add/Edit Item Section (Admin Only) */}
                {isAdminMode && (
                    <div className="bg-slate-800/50 p-4 rounded-xl border border-dashed border-slate-700">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Admin: Add Reward</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                          {editingItemId ? 'Admin: Edit Reward' : 'Admin: Add Reward'}
+                      </h4>
                       <div className="flex gap-2 mb-2">
                          <input value={newShopItem.name} onChange={e => setNewShopItem({...newShopItem, name: e.target.value})} placeholder="奖励名称" className="flex-[2] bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"/>
                          <input type="number" value={newShopItem.price} onChange={e => setNewShopItem({...newShopItem, price: parseInt(e.target.value) || 0})} placeholder="价格" className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"/>
                       </div>
-                      <button onClick={addShopItem} className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Plus size={14}/> 上架奖励</button>
+                      
+                      {/* Icon Selector Grid */}
+                      <div className="mb-3">
+                          <p className="text-[10px] text-slate-500 mb-1.5">Select Icon:</p>
+                          <div className="grid grid-cols-10 gap-1.5">
+                              {SHOP_ICONS.map(icon => (
+                                  <button 
+                                    key={icon} 
+                                    onClick={() => setNewShopItem({...newShopItem, icon})}
+                                    className={`aspect-square rounded border flex items-center justify-center text-sm transition-all ${newShopItem.icon === icon ? 'bg-cyan-600 border-cyan-400 scale-110 shadow-lg' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}
+                                  >
+                                      {icon}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                          {editingItemId && (
+                              <button onClick={cancelEdit} className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                                  <XSquare size={14}/> 取消
+                              </button>
+                          )}
+                          <button onClick={handleSaveShopItem} className={`flex-1 ${editingItemId ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-slate-700 hover:bg-slate-600'} text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1`}>
+                              {editingItemId ? <><Save size={14}/> 保存修改</> : <><Plus size={14}/> 上架奖励</>}
+                          </button>
+                      </div>
                    </div>
                )}
 
                {/* Shop Items Grid */}
                <div className="grid grid-cols-2 gap-3">
                   {shopItems.map(item => (
-                     <div key={item.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative group overflow-hidden">
+                     <div key={item.id} className={`bg-slate-800 p-4 rounded-xl border transition-all relative group overflow-hidden ${editingItemId === item.id ? 'border-cyan-500 ring-1 ring-cyan-500/50' : 'border-slate-700'}`}>
                         {isAdminMode && (
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                               <button onClick={() => deleteShopItem(item.id)} className="text-red-400 hover:text-red-300"><Trash2 size={16}/></button>
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                               <button onClick={() => startEditItem(item)} className="bg-slate-700 p-1.5 rounded-full text-cyan-400 hover:text-white hover:bg-cyan-600"><Edit2 size={12}/></button>
+                               <button onClick={() => deleteShopItem(item.id)} className="bg-slate-700 p-1.5 rounded-full text-red-400 hover:text-white hover:bg-red-600"><Trash2 size={12}/></button>
                             </div>
                         )}
                         <div className="flex flex-col items-center text-center mb-3">
-                           <div className="text-4xl mb-2">{item.icon}</div>
+                           <div className="text-4xl mb-2 filter drop-shadow-md">{item.icon}</div>
                            <h4 className="font-bold text-white text-sm line-clamp-1">{item.name}</h4>
                            <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
                         </div>
-                        <button onClick={() => buyItem(item)} className="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 font-bold py-2 rounded-lg text-xs shadow-lg shadow-yellow-900/20 active:scale-95 transition-all">
+                        <button onClick={() => buyItem(item)} disabled={isAdminMode} className={`w-full font-bold py-2 rounded-lg text-xs shadow-lg active:scale-95 transition-all ${isAdminMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 shadow-yellow-900/20'}`}>
                            {item.price} G 兑换
                         </button>
                      </div>
